@@ -1,0 +1,22 @@
+{
+  "name": "@compliance/dsh-client-ui-brand",
+  "description": "Compliance AI brand occupants for the sidebar and conversation hero brand slots",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  }
+}
