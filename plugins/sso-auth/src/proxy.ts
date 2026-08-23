@@ -36,8 +36,17 @@ export interface ProxyGate {
    * @returns whether the gate answered it; false forwards to the decision path.
    */
   handle: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
-  /** Decide one forwarded request. */
-  authorize: (req: IncomingMessage) => Promise<Authorization>
+  /**
+   * Whether this request cannot be judged without its body.
+   *
+   * Buffering is opt-in per request because it costs latency and memory, and
+   * because the bodies that matter (a settings write, a session create) are
+   * tiny while the ones that are not (image attachments, prompts) are not.
+   * Returning false keeps the request streaming end to end.
+   */
+  needsBody?: (req: IncomingMessage) => boolean
+  /** Decide one forwarded request; `body` arrives only when `needsBody` asked. */
+  authorize: (req: IncomingMessage, body?: Buffer) => Promise<Authorization>
   /** Render the page shown to an unauthenticated document request. */
   challengePage: (returnTo: string) => { readonly location: string }
   /** Render the page shown to a denied caller. */
@@ -59,6 +68,8 @@ export interface ProxyOptions {
   readonly target: { readonly host: string; readonly port: number }
   readonly gate: ProxyGate
   readonly logger: Pick<Console, 'warn'>
+  /** Cap on a buffered body; a larger one is refused rather than judged blind. */
+  readonly maxInspectedBodyBytes: number
 }
 
 /** A running proxy. */
@@ -163,13 +174,45 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
     socket.once('close', () => hijacked.delete(socket))
   }
 
-  const forward = (req: IncomingMessage, res: ServerResponse): void => {
+  /**
+   * Read a whole request body, refusing past the cap.
+   *
+   * The cap matters: without it, a caller could make the gate hold an arbitrary
+   * amount of memory just by claiming to write a setting. Refusing is the only
+   * safe answer, because judging a truncated body would be judging the wrong
+   * request.
+   */
+  const readBody = (req: IncomingMessage, limit: number): Promise<Buffer | 'too-large'> =>
+    new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+      let size = 0
+      req.on('data', (chunk: Buffer) => {
+        size += chunk.length
+        if (size > limit) {
+          req.destroy()
+          resolve('too-large')
+          return
+        }
+        chunks.push(chunk)
+      })
+      req.on('end', () => resolve(Buffer.concat(chunks)))
+      req.on('error', reject)
+    })
+
+  const forward = (req: IncomingMessage, res: ServerResponse, body?: Buffer): void => {
+    const headers = forwardHeaders(req.headers, targetAuthority)
+    // A buffered body has already left the socket, so its length is now known
+    // exactly — restate it rather than forwarding a stale or chunked header.
+    if (body !== undefined) {
+      delete headers['content-length']
+      headers['content-length'] = String(body.length)
+    }
     const upstream = httpRequest({
       host: target.host,
       port: target.port,
       method: req.method,
       path: req.url,
-      headers: forwardHeaders(req.headers, targetAuthority),
+      headers,
     }, (upstreamRes) => {
       const status = upstreamRes.statusCode ?? 502
       const epilogue = gate.htmlEpilogue
@@ -202,7 +245,8 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
       if (!res.headersSent) respondText(res, 502, 'upstream unavailable')
       else res.destroy()
     })
-    req.pipe(upstream)
+    if (body === undefined) req.pipe(upstream)
+    else upstream.end(body)
   }
 
   const server = createServer((req, res) => {
@@ -215,13 +259,28 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
         return
       }
       if (await gate.handle(req, res)) return
-      const decision = await gate.authorize(req)
+
+      let body: Buffer | undefined
+      if (gate.needsBody?.(req) === true) {
+        const read = await readBody(req, options.maxInspectedBodyBytes)
+        if (read === 'too-large') {
+          respondText(res, 413, 'request body too large to authorize')
+          return
+        }
+        body = read
+      }
+
+      const decision = await gate.authorize(req, body)
       if (decision.kind === 'allow') {
-        forward(req, res)
+        forward(req, res, body)
         return
       }
       if (decision.kind === 'deny') {
-        respondHtml(res, 403, gate.denyPage(decision.reason))
+        // A denied navigation gets the explanatory page; a denied XHR gets plain
+        // text, because handing the SPA an HTML document where it expects JSON
+        // surfaces as a parse error instead of as a refusal.
+        if (isDocumentRequest(req, edge)) respondHtml(res, 403, gate.denyPage(decision.reason))
+        else respondText(res, 403, decision.reason)
         return
       }
       if (isDocumentRequest(req, edge)) {

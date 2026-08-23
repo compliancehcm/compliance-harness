@@ -54,6 +54,15 @@
           claimPath: resource_access.compliance-ai-harness.roles
           anyOf: [dsh-access]
 
+        # ── who may reach the configuration plane ────────────────────────────
+        # Models, plugin configuration, agent presets, credentials and the
+        # dynamic Cordis runner are refused for everyone who does not match.
+        # Omitting this block makes NOBODY an administrator, which is the safe
+        # direction: the surface is closed rather than open.
+        admin:
+          claimPath: resource_access.compliance-ai-harness.roles
+          anyOf: [dsh-admin]
+
         # ── session lifetime ─────────────────────────────────────────────────
         sessionTtlMinutes: 480
         idleTimeoutMinutes: 60

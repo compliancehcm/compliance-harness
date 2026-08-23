@@ -17,6 +17,7 @@ import {
 } from './oidc.ts'
 import type { ClientIdentity, ProviderMetadata, TokenSet } from './oidc.ts'
 import { deniedPage, errorPage, livenessScript, loginPage } from './pages.ts'
+import { apiMethodOf, judge, needsBodyToJudge } from './policy.ts'
 import { randomId, safeEqual } from './sessions.ts'
 import type { Session, SessionStore } from './sessions.ts'
 import type { Authorization, ProxyGate } from './proxy.ts'
@@ -94,11 +95,48 @@ export class SsoGate implements ProxyGate {
    * @param req - the inbound request.
    * @returns whether to forward, challenge, or deny.
    */
-  async authorize(req: IncomingMessage): Promise<Authorization> {
+  async authorize(req: IncomingMessage, body?: Buffer): Promise<Authorization> {
     const found = this.deps.sessions.touch(readCookie({ headers: req.headers }, SESSION_COOKIE))
     if (typeof found === 'string') return { kind: 'challenge', reason: found }
+
+    const permitted = this.permit(req, found, body)
+    if (permitted !== undefined) return permitted
+
     if (!this.deps.sessions.needsRenewal(found, RENEWAL_SKEW_MS)) return { kind: 'allow' }
     return await this.renew(found)
+  }
+
+  /** Whether this request needs its body buffered before {@link authorize} can judge. */
+  needsBody(req: IncomingMessage): boolean {
+    return needsBodyToJudge(apiMethodOf(parseTarget(req).pathname))
+  }
+
+  /**
+   * Apply the administrative policy to one request.
+   * @returns a refusal, or undefined when the policy has no objection.
+   */
+  private permit(req: IncomingMessage, session: Session, body?: Buffer): Authorization | undefined {
+    let parsed: unknown
+    if (body !== undefined && body.length > 0) {
+      try {
+        parsed = JSON.parse(body.toString('utf8'))
+      } catch {
+        // An unparsable body cannot be judged, and the harness would reject it
+        // as non-JSON anyway; refusing here keeps the policy from being bypassed
+        // by sending deliberate garbage.
+        return { kind: 'deny', reason: 'request body is not JSON' }
+      }
+    }
+    const verdict = judge(parseTarget(req).pathname, {
+      admin: session.admin,
+      label: session.principal.email ?? session.principal.subject,
+    }, parsed)
+    if (verdict.kind === 'allow') return undefined
+    this.deps.logger.info(
+      `sso-auth: refused ${req.method ?? 'GET'} ${req.url ?? '/'} for `
+      + `${session.principal.email ?? session.principal.subject}: ${verdict.reason}`,
+    )
+    return { kind: 'deny', reason: verdict.reason }
   }
 
   /** Renew a session whose access token is expiring, or end it. */
@@ -234,22 +272,32 @@ export class SsoGate implements ProxyGate {
     // The authorization claim is searched in both tokens: Keycloak keeps role
     // claims in the access token and the id_token carries none.
     const accessClaims = decodeClaims(tokens.accessToken)
-    const verdict = checkClaimsAcross([
+    const sources = [
       { label: 'id_token', claims },
       ...accessClaims === undefined ? [] : [{ label: 'access_token', claims: accessClaims }],
-    ], this.deps.config.require)
+    ]
+    const verdict = checkClaimsAcross(sources, this.deps.config.require)
     if (!verdict.ok) {
       this.deps.logger.info(`sso-auth: denied ${principal.subject}: ${verdict.reason}`)
       sendHtml(res, 403, deniedPage(verdict.reason))
       return true
     }
 
+    // Administrative standing is decided here, once, against the tokens this
+    // login produced. An absent `admin` requirement makes nobody an
+    // administrator, which is the safe direction to fail.
+    const admin = this.deps.config.admin !== undefined
+      && checkClaimsAcross(sources, this.deps.config.admin).ok
+
     const session = this.deps.sessions.create(principal, {
       expiresInSeconds: tokens.expiresInSeconds,
       ...tokens.refreshToken !== undefined && { refreshToken: tokens.refreshToken },
       idToken: tokens.idToken,
+      admin,
     })
-    this.deps.logger.info(`sso-auth: signed in ${principal.email ?? principal.subject}`)
+    this.deps.logger.info(
+      `sso-auth: signed in ${principal.email ?? principal.subject}${admin ? ' (administrator)' : ''}`,
+    )
     res.writeHead(302, {
       location: pending.returnTo,
       'set-cookie': sessionCookie(session.id, {
@@ -296,7 +344,13 @@ export class SsoGate implements ProxyGate {
     const found = this.deps.sessions.touch(readCookie({ headers: req.headers }, SESSION_COOKIE))
     const authenticated = typeof found !== 'string'
     const body = JSON.stringify(authenticated
-      ? { authenticated: true, subject: found.principal.subject, name: found.principal.name ?? null }
+      ? {
+        authenticated: true,
+        subject: found.principal.subject,
+        name: found.principal.name ?? null,
+        email: found.principal.email ?? null,
+        admin: found.admin,
+      }
       : { authenticated: false })
     res.writeHead(200, {
       'content-type': 'application/json; charset=utf-8',

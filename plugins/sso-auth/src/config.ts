@@ -40,6 +40,12 @@ export interface SsoConfig {
   readonly scopes: readonly string[]
   /** Claim requirement, or absent to admit any authenticated user. */
   readonly require?: ClaimRequirement
+  /**
+   * Claim requirement that grants administrative access. Absent means nobody is
+   * an administrator, which is the safe default: the privileged surface is then
+   * refused for everyone rather than open to everyone.
+   */
+  readonly admin?: ClaimRequirement
   /** Absolute session lifetime, after which re-authentication is required. */
   readonly sessionTtlMs: number
   /** Idle lifetime, after which an untouched session is dropped. */
@@ -107,22 +113,23 @@ function readMinutes(
   return value * 60_000
 }
 
-/** Read the optional claim requirement. */
+/** Read an optional claim requirement stored under `key`. */
 function readRequirement(
   raw: Record<string, unknown>,
+  key: string,
   problems: string[],
 ): ClaimRequirement | undefined {
-  const value = raw['require']
+  const value = raw[key]
   if (value === undefined) return undefined
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    problems.push('require must be an object with claimPath and anyOf')
+    problems.push(`${key} must be an object with claimPath and anyOf`)
     return undefined
   }
   const record = value as Record<string, unknown>
   const claimPath = requireString(record, 'claimPath', problems)
   const anyOf = record['anyOf']
   if (!Array.isArray(anyOf) || anyOf.length === 0 || anyOf.some(entry => typeof entry !== 'string')) {
-    problems.push('require.anyOf must be a non-empty array of strings')
+    problems.push(`${key}.anyOf must be a non-empty array of strings`)
     return undefined
   }
   if (claimPath === '') return undefined
@@ -132,7 +139,7 @@ function readRequirement(
 /** Every field this plugin understands; anything else is a rejection. */
 const KNOWN_FIELDS: ReadonlySet<string> = new Set([
   'issuer', 'clientId', 'clientSecretEnv', 'publicUrl', 'host', 'port',
-  'scopes', 'require', 'sessionTtlMinutes', 'idleTimeoutMinutes',
+  'scopes', 'require', 'admin', 'sessionTtlMinutes', 'idleTimeoutMinutes',
 ])
 
 /**
@@ -193,7 +200,8 @@ export function resolveConfig(input: unknown): SsoConfig {
   }
   if (!scopes.includes('openid')) scopes = ['openid', ...scopes]
 
-  const requirement = readRequirement(raw, problems)
+  const requirement = readRequirement(raw, 'require', problems)
+  const adminRequirement = readRequirement(raw, 'admin', problems)
   const sessionTtlMs = readMinutes(raw, 'sessionTtlMinutes', DEFAULTS.sessionTtlMinutes, problems)
   const idleTimeoutMs = readMinutes(raw, 'idleTimeoutMinutes', DEFAULTS.idleTimeoutMinutes, problems)
 
@@ -214,6 +222,7 @@ export function resolveConfig(input: unknown): SsoConfig {
     port,
     scopes,
     ...requirement !== undefined && { require: requirement },
+    ...adminRequirement !== undefined && { admin: adminRequirement },
     sessionTtlMs,
     idleTimeoutMs,
   }

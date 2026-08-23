@@ -28,6 +28,19 @@ export interface Principal {
 export interface Session {
   readonly id: string
   readonly principal: Principal
+  /**
+   * Whether this session satisfied the administrative claim requirement.
+   *
+   * Decided once, at login, from the tokens the provider issued then. Keeping it
+   * on the session is what makes later requests gateable at all: the claims
+   * themselves are not retained, and re-reading them per request would mean a
+   * token introspection round trip on every call.
+   *
+   * The consequence is worth stating: revoking someone's admin role in the
+   * identity provider does not demote a session already open. It takes effect on
+   * their next login, or when the session hits its absolute TTL.
+   */
+  readonly admin: boolean
   /** Refresh token, when the issuer granted one; absent disables renewal. */
   refreshToken?: string
   /** The id_token, retained only as the `id_token_hint` for RP-initiated logout. */
@@ -105,12 +118,14 @@ export class SessionStore {
       readonly expiresInSeconds: number
       readonly refreshToken?: string
       readonly idToken?: string
+      readonly admin?: boolean
     },
   ): Session {
     const at = this.now()
     const session: Session = {
       id: randomId(),
       principal,
+      admin: tokens.admin ?? false,
       ...tokens.refreshToken !== undefined && { refreshToken: tokens.refreshToken },
       ...tokens.idToken !== undefined && { idToken: tokens.idToken },
       accessExpiresAt: at + tokens.expiresInSeconds * 1000,

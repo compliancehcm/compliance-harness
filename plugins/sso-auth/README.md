@@ -118,6 +118,50 @@ environment — the same order as the harness's own `apiKeyEnv` references. A
 downgrade to a public client, because the provider would otherwise answer an
 opaque `invalid_client`.
 
+## The administrative fence
+
+`src/policy.ts` refuses the configuration plane for anyone who does not match the
+`admin` claim requirement. This is not belt-and-braces — it is the only fence
+there is.
+
+The harness normally keeps `settings.*`, `credentials.*`, `llm.discoverModels`
+and the preset-authoring methods loopback-only through `PRIVILEGED_METHODS`
+(`packages/client/connection/src/index.ts:89-119`), enforced by re-running the
+host trust fence with an empty trusted-host list. **This proxy forwards from
+`127.0.0.1`, so every authenticated user passes that pin unconditionally.**
+Without the policy, admitting a user hands them the whole configuration plane.
+
+Refused for a non-admin: `credentials.*`, `llm.providers`,
+`llm.discoverModels`, `settings.openDocument`,
+`agentPreset.{read,copy,openDocument,remove}`,
+`host.{pickDirectory,openPath,listDirectory,createDirectory}`, and the
+`dynamicCordisRunner` and `pluginInventory` Remote namespaces.
+
+Two cases are decided from the request **body**, not the path:
+
+- `settings.{describe,update,replace,mutate}` cannot be refused wholesale —
+  Appearance, Language and the composer's Enter behaviour persist through the
+  same methods. The namespace is in the body (`payload.ns`), so `ui-theme`,
+  `locale`, `ui-conversation` and `ui-onboarding` are allowed and everything else
+  (`shell`, `agent-loop`, `agent-presets`, `permission`, …) is refused.
+  `settings.describe` carries no namespace and answers for all of them at once,
+  so it is allowed; the host redacts secrets before serializing.
+- `session.create` carries an `agentPreset` field, which is the back door around
+  any gate on `agentPreset.select` — a preset is a different toolset carrying
+  shell-level trust. A non-admin naming one is refused.
+
+Bodies are buffered only for those two methods (capped at 256 KB, larger is
+refused rather than judged blind); everything else keeps streaming.
+
+Administrative standing is decided **once, at login**, and kept on the session:
+the claims are not retained, and re-reading them per request would mean an
+introspection round trip on every call. So revoking someone's admin role in the
+identity provider does not demote a session that is already open — it takes
+effect at their next login or when the session hits its absolute TTL.
+
+An absent `admin` block makes **nobody** an administrator. That is the safe
+direction: the surface closes rather than opens.
+
 ## Endpoints it owns
 
 | Path | Purpose |

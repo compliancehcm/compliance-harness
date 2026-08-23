@@ -15,6 +15,7 @@ import { resolveConfig } from './src/config.ts'
 import { SsoGate } from './src/gate.ts'
 import { SessionStore } from './src/sessions.ts'
 import { startProxy } from './src/proxy.ts'
+import { MAX_INSPECTED_BODY_BYTES } from './src/policy.ts'
 import type { HostContext, WebStartupFacade } from './src/host.ts'
 
 /** Cordis plugin name. */
@@ -79,6 +80,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
       target: { host: '127.0.0.1', port: ctx.webServer.port },
       gate,
       logger: ctx.logger as unknown as Pick<Console, 'warn'>,
+      maxInspectedBodyBytes: MAX_INSPECTED_BODY_BYTES,
     })
   } catch (error) {
     throw new Error(
