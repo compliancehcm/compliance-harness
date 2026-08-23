@@ -32,11 +32,11 @@ deliberately needs none.
 
 ## Layout
 
-`index.ts` is the whole host half; there is no browser half. The login pages are
-server-rendered, and the session is an `HttpOnly` cookie that the existing API
-clients already send — both callers omit `credentials`, so fetch's `same-origin`
-default carries it, and the WebSocket downlinks can carry a cookie but never a
-header.
+The login pages are server-rendered, and the session is an `HttpOnly` cookie the
+existing API clients already send — both callers omit `credentials`, so fetch's
+`same-origin` default carries it, and the WebSocket downlinks can carry a cookie
+but never a header. The browser half exists only to give the signed-in user a
+face and a way out (see [Browser half](#browser-half)).
 
 | File | Role |
 |---|---|
@@ -50,6 +50,36 @@ header.
 | `src/claims.ts` | Payload decoding and the claim requirement |
 | `src/sessions.ts` | Opaque-id sessions, expiry, pending logins |
 | `src/pages.ts` | Server-rendered pages and the liveness script |
+| `client.js` | Browser half: the user row and the sign-out action |
+
+## Browser half
+
+Two occupants, both in child slots the settings shell already declares:
+
+| Slot | Kind | What this package puts there |
+|---|---|---|
+| `settings.trigger` | single | The sidebar footer row's content — avatar and display name, at `priority: -1` so it shadows the shipped gear-plus-"Settings" content |
+| `settings.action` | list | A "Sign out" button in the panel's action strip |
+
+**Why not a dropdown that replaces the footer row.** `SettingsRoot` owns that
+footer `<button>` and its `onClick`, and the panel's sections
+(`settings.section`) are declared by *its* registration — so shadowing
+`sidebar.settings` to host a dropdown would take the settings panel down with
+it, along with every section other plugins register into (Models, Plugins,
+Agent presets). Occupying the two child slots leaves the panel and its sections
+untouched: the footer row becomes the user, clicking it opens Settings as
+before, and signing out lives inside.
+
+The identity comes from `/auth/status`, not from a Remote method: the gate sits
+in front of the webserver, so the RPC plane never sees it.
+
+Sign-out is a top-level navigation rather than a fetch, because `/auth/logout`
+answers 302 to the provider's end-session endpoint and only a navigation can
+follow that redirect. A fetch would drop the local session and leave the user
+silently signed in at the identity provider.
+
+In the collapsed 56px rail the row renders the avatar alone — the `wide` owner
+share carries that state.
 
 Sources sit at the package root and under `src/`, never under `lib/`, which the
 repository `.gitignore` ignores at any depth.
