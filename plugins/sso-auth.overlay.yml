@@ -37,8 +37,8 @@
       inject: [webStartup]
       config:
         # ── identity provider (Keycloak, or any OIDC issuer) ──────────────────
-        issuer: https://keycloak.example/realms/REPLACE_ME
-        clientId: REPLACE_ME
+        issuer: https://sso.compliancehcm.com.br/realms/ComplianceHCM
+        clientId: compliance-ai-harness
         # Name of the env var or credential reference holding the secret — never
         # the secret itself. Omit the field entirely for a public PKCE client.
         clientSecretEnv: SSO_CLIENT_SECRET
@@ -51,8 +51,8 @@
         # ── who may enter ────────────────────────────────────────────────────
         # Drop `require` entirely to admit any authenticated user.
         require:
-          claimPath: realm_access.roles
-          anyOf: [dsh-user]
+          claimPath: resource_access.compliance-ai-harness.roles
+          anyOf: [dsh-access]
 
         # ── session lifetime ─────────────────────────────────────────────────
         sessionTtlMinutes: 480

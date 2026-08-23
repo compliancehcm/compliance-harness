@@ -120,6 +120,28 @@ never completes while one is open — verified on node 24. `src/proxy.ts` tracks
 hijacked pairs and destroys them on close; without that, unloading the plugin
 hangs.
 
+**The OIDC callback is cross-site, by construction.** It returns from the
+provider's origin, so browsers send `Sec-Fetch-Site: cross-site` on it. A blanket
+cross-site refusal therefore refuses every login — which it did, until the rule
+became "refuse cross-site unless it is a top-level GET/HEAD navigation". Such a
+request cannot set headers, cannot read the response, and cannot reach a
+state-changing endpoint, which is precisely why `SameSite=Lax` admits it; a
+cross-site navigation with any other method is still refused.
+
+**The authorization claim is searched in both tokens.** Keycloak puts
+`realm_access` and `resource_access` in the ACCESS token and ships an id_token
+with no role claim at all, so requiring the id_token would mean asking every
+deployment to add a protocol mapper before the gate works. Both tokens arrive in
+the same token-endpoint response over the same TLS channel from the same issuer,
+so provenance — not location — is what makes the claim trustworthy. Identity
+still comes from the id_token alone. A denial names both tokens and what each
+held, because "the claim is absent" and "it holds the wrong value" need different
+fixes.
+
+Note for Keycloak specifically: a **client** role lives at
+`resource_access.<clientId>.roles`, a **realm** role at `realm_access.roles`.
+Getting this wrong denies every user with a message that says the claim is absent.
+
 **Documents redirect, everything else 401s.** A browser navigation
 (`Sec-Fetch-Mode: navigate`, or an `Accept` asking for HTML) gets a 302 to the
 login page; an XHR gets 401. Redirecting an XHR would hand the SPA a login

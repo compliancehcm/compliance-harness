@@ -9,7 +9,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readCookie, sessionCookie, SESSION_COOKIE } from './edge.ts'
-import { checkClaims, decodeClaims, toPrincipal } from './claims.ts'
+import { checkClaimsAcross, decodeClaims, toPrincipal } from './claims.ts'
 import { redirectUri } from './config.ts'
 import type { SsoConfig } from './config.ts'
 import {
@@ -231,7 +231,13 @@ export class SsoGate implements ProxyGate {
       sendHtml(res, 502, errorPage('The id_token carries no subject, so the user cannot be identified.'))
       return true
     }
-    const verdict = checkClaims(claims, this.deps.config.require)
+    // The authorization claim is searched in both tokens: Keycloak keeps role
+    // claims in the access token and the id_token carries none.
+    const accessClaims = decodeClaims(tokens.accessToken)
+    const verdict = checkClaimsAcross([
+      { label: 'id_token', claims },
+      ...accessClaims === undefined ? [] : [{ label: 'access_token', claims: accessClaims }],
+    ], this.deps.config.require)
     if (!verdict.ok) {
       this.deps.logger.info(`sso-auth: denied ${principal.subject}: ${verdict.reason}`)
       sendHtml(res, 403, deniedPage(verdict.reason))

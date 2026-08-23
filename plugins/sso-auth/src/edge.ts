@@ -31,6 +31,21 @@ export function header(request: EdgeRequest, name: string): string | undefined {
 }
 
 /**
+ * Whether this is a top-level navigation with a safe method.
+ *
+ * Such a request cannot be a CSRF vector: a cross-site actor driving it cannot
+ * set headers on it, cannot read the response, and — being a GET — cannot reach
+ * a state-changing endpoint. It is also the shape of every inbound link and, in
+ * particular, of the OIDC callback, which by construction arrives cross-site
+ * from the identity provider. `SameSite=Lax` exists for exactly this case.
+ */
+function isSafeTopLevelNavigation(request: EdgeRequest): boolean {
+  const method = request.method ?? 'GET'
+  if (method !== 'GET' && method !== 'HEAD') return false
+  return header(request, 'sec-fetch-mode') === 'navigate'
+}
+
+/**
  * Refuse a request whose provenance says it came from another site.
  *
  * Two independent signals, because neither is universally present: modern
@@ -38,15 +53,26 @@ export function header(request: EdgeRequest, name: string): string | undefined {
  * request sends `Origin`. A request with neither is a same-origin navigation or
  * a non-browser client, and is left to the session check.
  *
+ * A cross-site *top-level GET navigation* is admitted, because refusing it
+ * refuses the OIDC callback itself — the login redirect returns from the
+ * provider's origin and is therefore always cross-site. A cross-site navigation
+ * with any other method (a form POST) stays refused, since that is the CSRF
+ * shape this check exists to stop.
+ *
  * @param request - the inbound request.
  * @param publicAuthority - the `host:port` browsers were told to use.
  * @returns the refusal, or undefined when the request may proceed.
  */
 export function checkEdge(request: EdgeRequest, publicAuthority: string): EdgeRefusal | undefined {
+  const safeNavigation = isSafeTopLevelNavigation(request)
   const fetchSite = header(request, 'sec-fetch-site')
-  if (fetchSite === 'cross-site') {
-    return { kind: 'cross-site', detail: 'sec-fetch-site: cross-site' }
+  if (fetchSite === 'cross-site' && !safeNavigation) {
+    return { kind: 'cross-site', detail: `sec-fetch-site: cross-site on ${request.method ?? 'GET'}` }
   }
+  // A navigation carries no meaningful Origin to compare (browsers omit it on a
+  // safe navigation, and send the provider's on some redirect chains), so the
+  // authority comparison below applies to non-navigation requests only.
+  if (safeNavigation) return undefined
   const origin = header(request, 'origin')
   if (origin !== undefined && origin !== 'null') {
     let parsed: URL

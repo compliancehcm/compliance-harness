@@ -88,6 +88,44 @@ export function checkClaims(
   }
 }
 
+/** One named payload to search for the required claim. */
+export interface ClaimSource {
+  /** Which token this is, for the diagnostic message. */
+  readonly label: string
+  readonly claims: TokenClaims
+}
+
+/**
+ * Check the requirement against several tokens, reporting which one satisfied it.
+ *
+ * Role claims are not reliably in the id_token: Keycloak puts `realm_access` and
+ * `resource_access` in the ACCESS token by default and the id_token carries no
+ * role claim at all, so requiring the id_token would mean asking every
+ * deployment to add a protocol mapper before the gate works.
+ *
+ * Searching both is sound because both tokens arrive in the same token-endpoint
+ * response, over the same TLS channel, from the same issuer — provenance, not
+ * location, is what makes a claim trustworthy here. Identity still comes from
+ * the id_token alone; only the authorization claim is searched more widely.
+ *
+ * @param sources - the tokens to search, in preference order.
+ * @param requirement - the configured requirement, or undefined to admit anyone.
+ * @returns the verdict, naming the satisfying token or listing what was found.
+ */
+export function checkClaimsAcross(
+  sources: readonly ClaimSource[],
+  requirement: ClaimRequirement | undefined,
+): ClaimVerdict & { readonly matchedIn?: string } {
+  if (requirement === undefined) return { ok: true }
+  const reasons: string[] = []
+  for (const source of sources) {
+    const verdict = checkClaims(source.claims, requirement)
+    if (verdict.ok) return { ok: true, matchedIn: source.label }
+    reasons.push(`${source.label}: ${verdict.reason}`)
+  }
+  return { ok: false, reason: reasons.join('; ') }
+}
+
 /**
  * Project a principal out of a payload.
  * @param claims - the decoded payload.
