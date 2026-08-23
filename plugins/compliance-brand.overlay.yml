@@ -1,0 +1,11 @@
+# Loader overlay: swap the shipped brand occupants for the Compliance AI ones.
+#
+# The official row is disabled rather than left alongside: the three brand
+# slots are `kind: single`, so two occupant sets would collide the moment a
+# build ran with DSH_CLIENT_BUILD_PROFILE=official.
+- id: ui-brand-official
+  disabled: true
+
+- insert:
+    - id: ui-brand-compliance
+      name: '@compliance/dsh-client-ui-brand'
