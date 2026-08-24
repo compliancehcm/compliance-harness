@@ -76,6 +76,21 @@ export function errorPage(summary: string, detail?: string): string {
 }
 
 /**
+ * The page shown when the platform has no capacity for this user yet.
+ *
+ * It refreshes itself, because the condition it reports is temporary by
+ * definition: a backend is reaped after a few minutes idle, so waiting is the
+ * correct action rather than an error to report and stop at.
+ */
+export function waitingPage(message: string): string {
+  return page('Starting your workspace', `
+  <h1>Starting your workspace</h1>
+  <p>${escapeHtml(message)}</p>
+  <div class="detail">This page refreshes itself; no action is needed.</div>
+  <script>setTimeout(function(){ location.reload() }, 5000)</script>`)
+}
+
+/**
  * The script appended to every forwarded HTML document.
  *
  * It exists because the application cannot tell a lost session from a lost

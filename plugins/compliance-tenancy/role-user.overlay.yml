@@ -1,0 +1,57 @@
+# The composition an ordinary user's backend gets.
+#
+# This is the cosmetic half of the administrative fence: it removes the buttons.
+# The fence itself is the gateway's request policy (plugins/sso-auth/src/policy.ts),
+# which refuses the endpoints behind them — omitting a row here does not remove
+# an RPC, and a user who crafts the call directly must still be refused.
+#
+# Omitting these rows is structurally clean: `settings.section` and
+# `settings.general.item` are declared by ui-settings-general, which always
+# registers the General section itself, so nothing is left with a dangling slot.
+#
+# `ui-settings` is NOT disabled and must not be: ui-theme, locale and
+# ui-conversation all inject `settingsScope`, so removing it would take
+# Appearance, Language and the composer with it.
+
+# Models and provider credentials.
+- id: ui-settings-models
+  disabled: true
+
+# Plugin configuration cards (bash policy, agent-loop limits, web search key).
+- id: ui-settings-plugins
+  disabled: true
+
+# The read-only Loader inventory tab.
+- id: ui-settings-plugin-inventory
+  disabled: true
+
+# Agent presets: the section, and the per-session picker chip. A preset carries
+# the same trust as shell access, so choosing one is an administrative act.
+- id: ui-agent-preset
+  disabled: true
+
+# Permission presets: these set the sandbox mode, and the outer namespace makes
+# escalation moot for path confinement — but leaving the control visible would
+# suggest a ceiling the user can raise, which they cannot.
+- id: ui-permission-presets
+  disabled: true
+
+# The dynamic Cordis runner: it approves and evaluates plugin code defined at
+# runtime. Both halves go, so nothing polls the endpoints the gateway refuses
+# and the console stays clean.
+- id: cordis-host-runner
+  disabled: true
+- id: cordis-client-runner
+  disabled: true
+- id: ui-cordis
+  disabled: true
+
+# The native directory chooser opens a dialog on the host machine, outside the
+# user's tree. The browse picker stays, rooted at the user's HOME.
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'

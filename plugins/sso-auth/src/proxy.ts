@@ -51,6 +51,8 @@ export interface ProxyGate {
   challengePage: (returnTo: string) => { readonly location: string }
   /** Render the page shown to a denied caller. */
   denyPage: (reason: string) => string
+  /** Render the page shown when no backend can serve this caller yet. */
+  waitingPage: (message: string) => string
   /**
    * Script injected before `</body>` of every forwarded HTML document, or
    * undefined to forward HTML untouched.
@@ -64,13 +66,35 @@ export interface ProxyOptions {
   readonly listen: { readonly host: string; readonly port: number }
   /** The authority browsers were told to use, for the cross-site check. */
   readonly publicAuthority: string
-  /** Where the harness webserver listens. */
-  readonly target: { readonly host: string; readonly port: number }
+  /**
+   * Where to send this request.
+   *
+   * A function rather than a constant because the backend can be per user: with
+   * tenancy mounted, each principal has their own confined harness. Returning a
+   * refusal keeps capacity limits and start failures out of the proxy, which
+   * knows nothing about users.
+   */
+  readonly resolveTarget: (req: IncomingMessage) => Promise<TargetResolution>
   readonly gate: ProxyGate
   readonly logger: Pick<Console, 'warn'>
   /** Cap on a buffered body; a larger one is refused rather than judged blind. */
   readonly maxInspectedBodyBytes: number
+  /**
+   * Called when an upgraded connection is established; the returned function
+   * runs when it closes.
+   *
+   * Long-lived connections are the reason a backend can look idle while a
+   * browser is actively attached to it: the event streams make no requests. A
+   * reaper without this would stop a workspace someone is watching.
+   */
+  readonly trackUpgrade?: (req: IncomingMessage) => (() => void) | undefined
 }
+
+/** Where one request should go, or why it cannot go anywhere. */
+export type TargetResolution =
+  | { readonly kind: 'target'; readonly host: string; readonly port: number }
+  /** Answered with `status` and this text rather than forwarded. */
+  | { readonly kind: 'unavailable'; readonly status: number; readonly message: string }
 
 /** A running proxy. */
 export interface RunningProxy {
@@ -159,8 +183,7 @@ function isRewritableHtml(headers: IncomingHttpHeaders): boolean {
  * @returns the running proxy, with its resolved port.
  */
 export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
-  const { gate, logger, publicAuthority, target } = options
-  const targetAuthority = `${target.host}:${String(target.port)}`
+  const { gate, logger, publicAuthority } = options
 
   // Every socket this proxy takes ownership of during an upgrade. Node stops
   // tracking a socket once 'upgrade' is emitted, so `closeAllConnections()`
@@ -199,7 +222,13 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
       req.on('error', reject)
     })
 
-  const forward = (req: IncomingMessage, res: ServerResponse, body?: Buffer): void => {
+  const forward = (
+    req: IncomingMessage,
+    res: ServerResponse,
+    target: { host: string; port: number },
+    body?: Buffer,
+  ): void => {
+    const targetAuthority = `${target.host}:${String(target.port)}`
     const headers = forwardHeaders(req.headers, targetAuthority)
     // A buffered body has already left the socket, so its length is now known
     // exactly — restate it rather than forwarding a stale or chunked header.
@@ -272,7 +301,16 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
 
       const decision = await gate.authorize(req, body)
       if (decision.kind === 'allow') {
-        forward(req, res, body)
+        const resolved = await options.resolveTarget(req)
+        if (resolved.kind === 'unavailable') {
+          // A capacity limit or a failed backend start is not an authorization
+          // problem, so it gets its own status and reaches the user as a page
+          // when they were navigating.
+          if (isDocumentRequest(req, edge)) respondHtml(res, resolved.status, gate.waitingPage(resolved.message))
+          else respondText(res, resolved.status, resolved.message)
+          return
+        }
+        forward(req, res, { host: resolved.host, port: resolved.port }, body)
         return
       }
       if (decision.kind === 'deny') {
@@ -308,9 +346,16 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
         socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
         return
       }
-      const headers = forwardHeaders(req.headers, targetAuthority)
+      const resolved = await options.resolveTarget(req)
+      if (resolved.kind === 'unavailable') {
+        socket.end(`HTTP/1.1 ${String(resolved.status)} Unavailable\r\nConnection: close\r\n\r\n`)
+        return
+      }
+      const headers = forwardHeaders(req.headers, `${resolved.host}:${String(resolved.port)}`)
       own(socket)
-      const upstream = connect(target.port, target.host, () => {
+      const release = options.trackUpgrade?.(req)
+      if (release !== undefined) socket.once('close', release)
+      const upstream = connect(resolved.port, resolved.host, () => {
         const lines = [`${req.method ?? 'GET'} ${req.url ?? '/'} HTTP/1.1`]
         for (const [name, value] of Object.entries(headers)) {
           for (const entry of Array.isArray(value) ? value : [value]) {

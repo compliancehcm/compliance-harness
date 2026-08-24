@@ -158,6 +158,25 @@ export class SessionStore {
     return session
   }
 
+  /**
+   * Look up a session without marking it used.
+   *
+   * `touch` doubles as the idle-timer reset, which is right for a request the
+   * user made and wrong for an internal lookup: routing a request should not by
+   * itself keep a session alive.
+   *
+   * @param id - the opaque id from the cookie.
+   * @returns the live session, or undefined when absent or expired.
+   */
+  peek(id: string | undefined): Session | undefined {
+    if (id === undefined) return undefined
+    const session = this.sessions.get(id)
+    if (session === undefined) return undefined
+    const at = this.now()
+    if (at >= session.absoluteDeadline || at - session.lastSeenAt >= this.idleTimeoutMs) return undefined
+    return session
+  }
+
   /** Record the outcome of a token renewal on a live session. */
   renewed(
     session: Session,

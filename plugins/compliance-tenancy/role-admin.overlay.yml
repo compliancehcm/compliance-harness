@@ -1,0 +1,17 @@
+# The composition an administrator's backend gets.
+#
+# Deliberately almost empty: an administrator sees the shipped Web composition,
+# including Models, Plugins, the Loader inventory and agent presets. The gateway
+# policy also stops refusing the endpoints behind them for this user.
+#
+# The one change is the directory picker. An administrator's backend is confined
+# to their own tree exactly like everyone else's — tenancy is not a trust level,
+# it is a boundary — so the native chooser, which opens a dialog on the host
+# machine outside that tree, is replaced by the in-browser one.
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'

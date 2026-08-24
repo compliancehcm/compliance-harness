@@ -30,9 +30,13 @@ const ADMIN_METHODS: ReadonlySet<string> = new Set([
   // Agent presets carry the same trust as shell access, and `read`/`copy`/
   // `openDocument` expose or clone their composition.
   'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
-  // Host filesystem outside the session flow. `listDirectory`/`createDirectory`
-  // are not even covered by the harness's own pin.
-  'host.pickDirectory', 'host.openPath', 'host.listDirectory', 'host.createDirectory',
+  // These act on the host machine OUTSIDE any confinement: a native directory
+  // dialog and a native file opener. `host.listDirectory` and
+  // `host.createDirectory` are deliberately NOT here — the workspace picker
+  // needs them to work at all, and what bounds them is the backend's namespace,
+  // in which no other user's directory exists. Refusing them made choosing a
+  // workspace impossible, which is how this was found.
+  'host.pickDirectory', 'host.openPath',
 ])
 
 /**

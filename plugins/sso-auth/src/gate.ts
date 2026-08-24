@@ -16,7 +16,7 @@ import {
   authorizationUrl, discover, exchangeCode, logoutUrl, OidcError, refresh, createPkce,
 } from './oidc.ts'
 import type { ClientIdentity, ProviderMetadata, TokenSet } from './oidc.ts'
-import { deniedPage, errorPage, livenessScript, loginPage } from './pages.ts'
+import { deniedPage, errorPage, livenessScript, loginPage, waitingPage } from './pages.ts'
 import { apiMethodOf, judge, needsBodyToJudge } from './policy.ts'
 import { randomId, safeEqual } from './sessions.ts'
 import type { Session, SessionStore } from './sessions.ts'
@@ -88,6 +88,22 @@ export class SsoGate implements ProxyGate {
 
   denyPage(reason: string): string {
     return deniedPage(reason)
+  }
+
+  waitingPage(message: string): string {
+    return waitingPage(message)
+  }
+
+  /**
+   * The session behind a request, for a caller that needs the principal rather
+   * than a verdict — the tenancy router asking which user this is.
+   *
+   * Read-only: it does not touch the idle timer, because resolving a route is
+   * not user activity on its own.
+   */
+  sessionOf(req: IncomingMessage): Session | undefined {
+    const found = this.deps.sessions.peek(readCookie({ headers: req.headers }, SESSION_COOKIE))
+    return found
   }
 
   /**

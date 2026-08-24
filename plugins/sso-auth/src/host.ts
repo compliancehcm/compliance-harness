@@ -26,6 +26,22 @@ export interface CredentialsFacade {
   resolve: (ref: string) => Promise<{ readonly value: string } | undefined>
 }
 
+/**
+ * The tenancy service (`ctx.tenancy`), when a tenancy plugin is mounted.
+ *
+ * Declared structurally rather than imported so this plugin keeps no dependency
+ * on the tenancy package: the gate works with or without it, and the shape of
+ * this interface is the whole contract between them.
+ */
+export interface TenancyFacade {
+  target: (request: { readonly subject: string; readonly admin: boolean }) => Promise<
+    | { readonly kind: 'ready'; readonly host: string; readonly port: number }
+    | { readonly kind: 'at-capacity'; readonly active: number; readonly max: number }
+    | { readonly kind: 'failed'; readonly reason: string }
+  >
+  trackSocket: (subject: string, delta: 1 | -1) => void
+}
+
 /** The subset of the Cordis plugin context this plugin uses. */
 export interface HostContext {
   /** The webserver whose port the proxy forwards to. Required. */

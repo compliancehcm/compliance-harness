@@ -16,7 +16,7 @@ import { SsoGate } from './src/gate.ts'
 import { SessionStore } from './src/sessions.ts'
 import { startProxy } from './src/proxy.ts'
 import { MAX_INSPECTED_BODY_BYTES } from './src/policy.ts'
-import type { HostContext, WebStartupFacade } from './src/host.ts'
+import type { HostContext, TenancyFacade, WebStartupFacade } from './src/host.ts'
 
 /** Cordis plugin name. */
 export const name = 'sso-auth'
@@ -72,15 +72,60 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
     logger: ctx.logger as unknown as Pick<Console, 'info' | 'warn'>,
   })
 
+  // With tenancy mounted, each user gets their own confined harness and this
+  // process's own webserver is never reached. Without it, every session shares
+  // the local one — which is the single-tenant behaviour this plugin had before,
+  // deliberately preserved so the gate stays useful on its own.
+  const tenancy = ctx.get<TenancyFacade>('tenancy')
+  if (tenancy === undefined) {
+    ctx.logger.info('sso-auth: no tenancy service; every session shares this harness')
+  }
+
   let proxy
   try {
     proxy = await startProxy({
       listen,
       publicAuthority: new URL(config.publicUrl).host,
-      target: { host: '127.0.0.1', port: ctx.webServer.port },
+      resolveTarget: async (req) => {
+        if (tenancy === undefined) return { kind: 'target', host: '127.0.0.1', port: ctx.webServer.port }
+        const session = gate.sessionOf(req)
+        if (session === undefined) {
+          // Only reachable if a session expires between the authorization check
+          // and this call. Treating it as unavailable rather than routing to a
+          // shared harness is what keeps a stale request from landing in the
+          // wrong user's data.
+          return { kind: 'unavailable', status: 401, message: 'session ended' }
+        }
+        const target = await tenancy.target({
+          subject: session.principal.subject,
+          admin: session.admin,
+        })
+        switch (target.kind) {
+          case 'ready':
+            return { kind: 'target', host: target.host, port: target.port }
+          case 'at-capacity':
+            return {
+              kind: 'unavailable',
+              status: 503,
+              message: `the platform is at capacity (${String(target.active)} of ${String(target.max)} workspaces running); `
+                + 'an idle one is released within a few minutes',
+            }
+          case 'failed':
+            return { kind: 'unavailable', status: 502, message: `your workspace could not be started: ${target.reason}` }
+        }
+      },
       gate,
       logger: ctx.logger as unknown as Pick<Console, 'warn'>,
       maxInspectedBodyBytes: MAX_INSPECTED_BODY_BYTES,
+      ...tenancy !== undefined && {
+        trackUpgrade: (req) => {
+          const session = gate.sessionOf(req)
+          if (session === undefined) return undefined
+          const subject = session.principal.subject
+          tenancy.trackSocket(subject, 1)
+          return () => { tenancy.trackSocket(subject, -1) }
+        },
+      },
     })
   } catch (error) {
     throw new Error(
