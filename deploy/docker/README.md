@@ -104,7 +104,7 @@ Optional, with the image's defaults:
 | `COMPLIANCE_MAX_BACKENDS` | `12` | Concurrent backends; beyond it a user waits |
 | `COMPLIANCE_IDLE_REAP_MINUTES` | `15` | Idle backend stop |
 | `COMPLIANCE_PORT_RANGE_START` / `_END` | `31000` / `31200` | Loopback ports for backends |
-| `COMPLIANCE_FORWARD_CREDENTIALS` | `DEEPSEEK_API_KEY` | Variables handed to each backend |
+| `COMPLIANCE_FORWARD_CREDENTIALS` | `DEEPSEEK_API_KEY OPENROUTER_API_KEY` | Variables handed to each backend |
 | `COMPLIANCE_TENANCY` | `on` | `off` runs one shared harness with the gate in front — no per-user isolation |
 | `ALMA_ENABLED` | `on` | `off` composes no ALMA connection at all |
 | `ALMA_MCP_URL` | `https://mcp.compliancehcm.com.br/mcp` | ALMA's MCP endpoint |
@@ -115,8 +115,13 @@ Optional, with the image's defaults:
 | `ALMA_CLIENT_ID` | — | Pin one pre-registered OAuth client; unset means each workspace registers itself dynamically |
 | `ALMA_CLIENT_SECRET` | — | That client's secret, for a confidential pinned client. Appended to `COMPLIANCE_FORWARD_CREDENTIALS` automatically, because the plugin resolves it in the backend |
 
-Provider credentials (`DEEPSEEK_API_KEY`, optionally `DEEPSEEK_BASE_URL`) are
-read from the gateway's environment and forwarded per the table above.
+Provider credentials are read from the gateway's environment and forwarded per
+the table above. The composed default LLM is **OpenRouter**
+(`plugins/compliance-llm-openrouter.overlay.yml`: `deepseek/deepseek-v4-flash`
+by default, `deepseek/deepseek-v4-pro` beside it), so `OPENROUTER_API_KEY` is the
+one a deployment must supply. `DEEPSEEK_API_KEY` stays forwarded because the
+shipped `web_search` tool still resolves it — drop the row or the variable
+together.
 
 ## ALMA needs no redirect URI registered anywhere
 

@@ -1,0 +1,54 @@
+# Loader overlay: OpenRouter as the deployment's LLM, over the pi-ai adapter.
+#
+# Composition, not settings. The base bundle mounts `llm-pi-ai` dormant and
+# points `agent-default-model` at the native DeepSeek route; a `llm-pi-ai:`
+# section in a user's own `settings.yaml` would override this per user, which is
+# exactly why the deployment default belongs here instead: under tenancy every
+# user starts from a fresh `$DSH_HOME` with no settings document, so a default
+# written through the Models page reaches only the harness that wrote it — the
+# gateway's own, which serves nobody.
+#
+# No secret is inlined. `apiKeyEnv` is a credential REFERENCE resolved per
+# request; the value lives in the credential store (or the root `.env`), and the
+# tenancy row must forward that variable name into each backend or the reference
+# resolves to nothing inside the jail.
+#
+# `openrouter` is a route pi-ai ships, so the endpoint and the wire protocol come
+# from its installed catalog. The two models below are newer than that catalog,
+# which is what a `models` list is for — it REPLACES the route's catalog, so
+# every model this deployment should serve appears here. Unsized models take the
+# route's own fallbacks (262,144 context, 32,768 output), which would under-size
+# these fourfold, so the capacities OpenRouter publishes are stated below.
+#
+# `maxTokens` is deliberately NOT the published 384,000: a CONFIGURED value
+# becomes the default output cap of every request that names none, and asking for
+# 384k of output on each turn is a deployment choice nobody made. It is stated as
+# a sane per-request default instead; a caller needing more asks for more.
+#
+# No `reasoningEfforts` is declared: a hand-declared model has no thinking levels
+# unless one is spelled out, so requests go out with no reasoning parameter and
+# OpenRouter applies the model's own default. Declaring levels here would put a
+# wire spelling on every request, which is worth doing only once someone has
+# checked which spellings this route accepts.
+- id: llm-pi-ai
+  config:
+    providers:
+      openrouter:
+        apiKeyEnv: OPENROUTER_API_KEY
+        models:
+          - id: deepseek/deepseek-v4-flash
+            name: DeepSeek V4 Flash
+            contextWindow: 1048576
+            maxTokens: 32768
+          - id: deepseek/deepseek-v4-pro
+            name: DeepSeek V4 Pro
+            contextWindow: 1048576
+            maxTokens: 32768
+
+# The default for every Agent created without an explicit selection. Flash is the
+# default and Pro is the other option in the picker; a patch replaces a row's
+# whole config, so both fields are stated.
+- id: agent-default-model
+  config:
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash

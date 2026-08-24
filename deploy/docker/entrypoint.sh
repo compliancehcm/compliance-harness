@@ -191,6 +191,10 @@ if [[ $TENANCY == on ]]; then
   backend_patches=(
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-user-menu.overlay.yml"
+    # The LLM default. Committed rather than rendered: unlike the SSO and ALMA
+    # rows it carries no machine paths and no origin, so there is nothing for the
+    # environment to fill in — a deployment wanting other models edits the file.
+    "$HARNESS_ROOT/plugins/compliance-llm-openrouter.overlay.yml"
   )
   if [[ $ALMA == on ]]; then
     backend_packages+=("$HARNESS_ROOT/plugins/compliance-alma-mcp")
@@ -229,6 +233,7 @@ else
   patches+=(
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-user-menu.overlay.yml"
+    "$HARNESS_ROOT/plugins/compliance-llm-openrouter.overlay.yml"
   )
   [[ $ALMA == on ]] && patches+=("$alma_overlay")
 fi
