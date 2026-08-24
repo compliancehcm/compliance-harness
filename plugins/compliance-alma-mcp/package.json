@@ -1,0 +1,23 @@
+{
+  "name": "@compliance/dsh-alma-mcp",
+  "description": "ALMA (Compliance HCM) as MCP tools: per-user OAuth, an authenticating loopback relay, and one mcp-client instance over it",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "src"
+  ]
+}

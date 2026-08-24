@@ -33,6 +33,9 @@ python/**/.pytest_cache/
 apps/web/dist/
 .artifacts/
 .dsh-build/
+# Rendered by deploy/docker/entrypoint.sh into the image tree, because a bwrap
+# backend can only read overlays under the harness root.
+.compliance-render/
 .playwright-mcp/
 .orig
 .worktrees/
