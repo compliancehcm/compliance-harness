@@ -31,3 +31,8 @@
         resolveMcpClientFrom: /home/lucas/dev/ai/compliance-harness/apps/cli
         # Renew this many seconds before the access token's stated expiry.
         refreshSkewSeconds: 120
+        # How long one ALMA tool call may take. The MCP SDK answers
+        # `-32001 Request timed out` when this elapses, and its own default is
+        # 60s — short for a query that goes looking through payroll history.
+        # Raise it here; it is not the harness's timeout, it is this route's.
+        toolCallTimeoutMs: 300000

@@ -79,6 +79,10 @@ export function createConnection(ctx, config, nonce) {
       transport: 'streamable-http',
       url: relayUrl,
       headers: { [RELAY_HEADER]: nonce },
+      // The MCP SDK raises `-32001 Request timed out` when this elapses, and its
+      // own default is 60s — short for an HR query that goes looking through a
+      // payroll history. It is a deployment field for exactly that reason.
+      toolCallTimeoutMs: config.toolCallTimeoutMs,
       failOnStartupError: false,
     })
     fiber = pending

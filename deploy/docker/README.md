@@ -111,6 +111,7 @@ Optional, with the image's defaults:
 | `ALMA_SERVER_NAME` | `alma` | Tool namespace; the model sees `mcp__alma__*` |
 | `ALMA_SCOPES` | `openid profile` | Scopes requested from ALMA |
 | `ALMA_REFRESH_SKEW_SECONDS` | `120` | Renew this long before an access token expires |
+| `ALMA_TOOL_CALL_TIMEOUT_MS` | `300000` | How long one ALMA tool call may take before the MCP SDK answers `-32001 Request timed out` |
 | `ALMA_CLIENT_ID` | — | Pin one pre-registered OAuth client; unset means each workspace registers itself dynamically |
 | `ALMA_CLIENT_SECRET` | — | That client's secret, for a confidential pinned client. Appended to `COMPLIANCE_FORWARD_CREDENTIALS` automatically, because the plugin resolves it in the backend |
 

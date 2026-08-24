@@ -45,6 +45,7 @@ await apply(ctx, {
   serverName: 'alma',
   resolveMcpClientFrom: `${REPO_ROOT}/apps/cli`,
   refreshSkewSeconds: 120,
+  toolCallTimeoutMs: 300_000,
 })
 
 const get = (path, init = {}) => fetch(`${harness.origin}${path}`, { redirect: 'manual', ...init })
@@ -100,6 +101,9 @@ check('one mcp-client mounted at the relay, with the nonce', () => {
   assert.equal(config.transport, 'streamable-http')
   assert.equal(config.url, `http://127.0.0.1:${ctx.webServer.port}/alma/mcp`)
   assert.ok(config.headers[RELAY_HEADER])
+  // The cap the SDK answers -32001 against reaches the mounted row, rather than
+  // silently staying at the SDK's own 60s default.
+  assert.equal(config.toolCallTimeoutMs, 300_000)
 })
 check('the mounted module is the real mcp-client plugin', () => {
   assert.equal(harness.mounted[0].plugin.name, 'mcp-client')

@@ -100,7 +100,8 @@ ENV CI=true \
     ALMA_MCP_URL=https://mcp.compliancehcm.com.br/mcp \
     ALMA_SERVER_NAME=alma \
     ALMA_SCOPES="openid profile" \
-    ALMA_REFRESH_SKEW_SECONDS=120
+    ALMA_REFRESH_SKEW_SECONDS=120 \
+    ALMA_TOOL_CALL_TIMEOUT_MS=300000
 
 # One volume, and it is the one holding user data: every user's workspace,
 # sessions, settings and credentials live under it.

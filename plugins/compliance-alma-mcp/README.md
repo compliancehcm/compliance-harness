@@ -132,6 +132,7 @@ sign-out cost a new dynamic registration on ALMA's side.
 | `clientSecretEnv` | no | Name of the variable holding that client's secret — never the secret. Requires `clientId` |
 | `clientName` | no | `client_name` sent at registration |
 | `refreshSkewSeconds` | no | Renew this long before the stated expiry, default 120 |
+| `toolCallTimeoutMs` | no | Cap on one ALMA tool call, default 60000 |
 | `failOnStartupError` | no | Fail the boot when a workspace that IS connected cannot mount its tools, default false |
 
 An unknown field is a rejection, not a warning: a silently ignored key reads as
@@ -202,6 +203,22 @@ Prefix-stable while the tool set is unchanged. A refresh does **not** disturb it
 definitions and invalidates reuse from the first changed token, which is
 unavoidable: it is a change in what the model can do.
 
+## When a call takes too long
+
+`MCP error -32001: Request timed out` is the MCP SDK's `RequestTimeout`, raised
+when the cap on **that request** elapses. Three different caps can produce it,
+and only the first is settable here:
+
+| The request | Its cap | Settable |
+|---|---|---|
+| `tools/call` | `toolCallTimeoutMs` (this row → mcp-client → the SDK's per-request `timeout`) | yes |
+| `initialize` and `tools/list` | the SDK's own 60s default | **no** — mcp-client's documented limitation, so a timeout during *connect* is not this field |
+| anything, while the server streams progress | — | **no** — mcp-client does not set the SDK's `resetTimeoutOnProgress`, so progress notifications do not extend the cap |
+
+So: a slow *tool* is `toolCallTimeoutMs`; a slow *handshake* is not fixable from
+this side today. The relay adds no cap of its own — it aborts only when the
+caller hangs up — so nothing between here and ALMA shortens the window.
+
 ## Known Limitations and Deferred Work
 
 - **The login is not resumable.** An attempt lives in the process that started
@@ -218,5 +235,11 @@ unavoidable: it is a change in what the model can do.
   deliberately absent, so the backend can reach the model provider). The relay
   does not narrow that: a workspace could reach ALMA without going through it.
   What the nonce protects is the *authorization*, not the route.
+- **A slow handshake cannot be waited out.** `initialize` and the paginated
+  `tools/list` use the MCP SDK's flat 60-second default because mcp-client
+  exposes no connection or discovery timeout, and this plugin cannot reach past
+  it. Making that configurable belongs upstream, in
+  `packages/mcp/mcp-client`, together with `resetTimeoutOnProgress` so a server
+  that reports progress can hold a long call open.
 - **One ALMA per workspace.** The row is a singleton by construction; a second
   instance would collide on `serverName` and on its route paths.

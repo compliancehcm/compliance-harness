@@ -17,6 +17,7 @@ const DEFAULTS = {
   scopes: ['openid', 'profile'],
   clientName: 'Compliance AI harness',
   refreshSkewSeconds: 120,
+  toolCallTimeoutMs: 60_000,
   failOnStartupError: false,
 }
 
@@ -24,7 +25,7 @@ const DEFAULTS = {
 const KNOWN_FIELDS = new Set([
   'mcpUrl', 'publicUrl', 'serverName', 'basePath', 'resolveMcpClientFrom',
   'scopes', 'clientId', 'clientSecretEnv', 'clientName', 'refreshSkewSeconds',
-  'failOnStartupError',
+  'toolCallTimeoutMs', 'failOnStartupError',
 ])
 
 /** Raised when the row's config cannot be understood. Lists every problem at once. */
@@ -170,6 +171,16 @@ export function resolveConfig(input) {
     }
   }
 
+  const timeoutRaw = raw['toolCallTimeoutMs']
+  let toolCallTimeoutMs = DEFAULTS.toolCallTimeoutMs
+  if (timeoutRaw !== undefined) {
+    if (typeof timeoutRaw !== 'number' || !Number.isInteger(timeoutRaw) || timeoutRaw <= 0) {
+      problems.push('toolCallTimeoutMs must be a positive whole number of milliseconds')
+    } else {
+      toolCallTimeoutMs = timeoutRaw
+    }
+  }
+
   const failRaw = raw['failOnStartupError']
   let failOnStartupError = DEFAULTS.failOnStartupError
   if (failRaw !== undefined) {
@@ -199,6 +210,7 @@ export function resolveConfig(input) {
     ...clientSecretEnv !== undefined && { clientSecretEnv },
     clientName,
     refreshSkewSeconds,
+    toolCallTimeoutMs,
     failOnStartupError,
     routes: {
       connect: `${basePath}/connect`,

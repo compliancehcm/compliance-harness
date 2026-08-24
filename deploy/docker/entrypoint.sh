@@ -156,6 +156,7 @@ if [[ $ALMA == on ]]; then
         resolveMcpClientFrom: ${HARNESS_ROOT}/apps/cli
         scopes: $(yaml_list "${ALMA_SCOPES:-openid profile}")
         refreshSkewSeconds: ${ALMA_REFRESH_SKEW_SECONDS:-120}
+        toolCallTimeoutMs: ${ALMA_TOOL_CALL_TIMEOUT_MS:-300000}
 YAML
     if [[ -n ${ALMA_CLIENT_ID:-} ]]; then
       printf '        clientId: %s\n' "$ALMA_CLIENT_ID"
