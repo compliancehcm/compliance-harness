@@ -1,0 +1,31 @@
+# Docker build context for deploy/docker/Dockerfile.
+#
+# The image installs and builds from source, so every generated tree is left
+# out: shipping a host-built `lib/` or `node_modules/` into the context would
+# both bloat the transfer and risk baking a platform-specific artifact.
+.git
+.github
+node_modules
+**/node_modules
+lib
+**/lib
+*.tsbuildinfo
+.dsh-build
+.artifacts
+coverage
+apps/web/dist
+website/.vitepress/dist
+website/.vitepress/cache
+dist-exe
+.worktrees
+worktrees
+.agents/worktrees
+.pnpm-store
+.cache
+.claude
+.env
+tmp
+.storages
+.sessions
+python/**/__pycache__
+python/**/.pytest_cache
