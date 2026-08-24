@@ -1,0 +1,33 @@
+# Loader overlay: ALMA (Compliance HCM) as MCP tools in the user's workspace.
+#
+# The committed values point at production and at one machine's public origin;
+# `deploy/docker/entrypoint.sh` renders this row from the container environment
+# instead, because `publicUrl` must be the origin browsers actually reach — the
+# redirect URI is built from it.
+#
+# One row, not two: the `@deepseek-ai/dsh-mcp-client` instance is mounted BY this
+# plugin once a grant exists, rather than inserted here. Inserted, it would
+# connect at boot, be refused by an endpoint nobody has authorized yet, and
+# exhaust its reconnect budget long before the user reached the connect page.
+#
+# The row belongs to whichever composition the browser loads — under tenancy that
+# is the per-user backend, never the gateway. It needs the harness webserver (for
+# its routes) and the credential store (for the grant).
+- insert:
+    - id: alma-mcp
+      name: '@compliance/dsh-alma-mcp'
+      inject: [webServer, credentials]
+      config:
+        # ALMA's MCP endpoint: an OAuth-protected resource.
+        mcpUrl: https://mcp.compliancehcm.com.br/mcp
+        # The origin browsers reach; `${publicUrl}/alma/callback` is the redirect
+        # URI this plugin registers for itself, so it must be the public one.
+        publicUrl: http://127.0.0.1:3080
+        # Tools appear to the model as `mcp__alma__*`.
+        serverName: alma
+        # Where `@deepseek-ai/dsh-mcp-client` is resolved from: a directory whose
+        # dependency graph declares it. `plugins/` is not a workspace member and
+        # has no node_modules of its own.
+        resolveMcpClientFrom: /home/lucas/dev/ai/compliance-harness/apps/cli
+        # Renew this many seconds before the access token's stated expiry.
+        refreshSkewSeconds: 120
