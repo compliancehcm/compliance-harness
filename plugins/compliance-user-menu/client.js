@@ -1,4 +1,13 @@
-// SSO gate, browser half: give the signed-in user a face and a way out.
+// The signed-in user's face, and their way out.
+//
+// This lives in its own package rather than in the SSO gate because the gate is
+// a GATEWAY plugin: with tenancy mounted it runs in the routing process, not in
+// the per-user backend that serves the browser, so a client half attached to it
+// would never appear in a backend's boot graph. Moving it here is what makes the
+// footer row and Sign out exist again.
+//
+// It reads `/auth/status`, which the gateway answers on the same origin — the
+// backend never sees that path.
 //
 // Hand-written in the lazy CJS factory form the client module loader consumes
 // (executing this script only REGISTERS the factory; every side effect runs at
@@ -20,7 +29,7 @@
 // with every section other plugins register into. Occupying the two child
 // slots leaves the panel intact.
 window.__ModuleLoader__.load({
-	id: "@compliance/dsh-sso-auth",
+	id: "@compliance/dsh-client-user-menu",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

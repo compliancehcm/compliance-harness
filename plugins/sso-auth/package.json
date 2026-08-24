@@ -7,17 +7,10 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./client": "./client.js",
     "./package.json": "./package.json"
-  },
-  "dsh": {
-    "client": {
-      "platform": "web"
-    }
   },
   "files": [
     "index.ts",
-    "client.js",
     "src"
   ]
 }

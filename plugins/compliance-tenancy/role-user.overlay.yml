@@ -33,7 +33,12 @@
 # Permission presets: these set the sandbox mode, and the outer namespace makes
 # escalation moot for path confinement — but leaving the control visible would
 # suggest a ceiling the user can raise, which they cannot.
-- id: ui-permission-presets
+#
+# The row id is `ui-permission`, NOT `ui-permission-presets` (that is the package
+# name). A patch targeting an id no row carries is silently ignored, so the
+# original typo here disabled nothing and the control stayed visible — verify
+# ids against packages/bundle/web-app/cordis.patch.yml when editing this file.
+- id: ui-permission
   disabled: true
 
 # The dynamic Cordis runner: it approves and evaluates plugin code defined at

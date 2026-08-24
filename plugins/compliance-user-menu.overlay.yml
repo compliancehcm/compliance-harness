@@ -1,0 +1,9 @@
+# Loader overlay: the signed-in user's row and Sign out in the sidebar footer.
+#
+# A separate row from the SSO gate on purpose. The gate is a gateway plugin —
+# under tenancy it runs in the routing process, not in the per-user backend that
+# serves the browser — so its own client half would never reach a boot graph.
+# This row belongs to whichever composition the browser actually loads.
+- insert:
+    - id: ui-user-menu
+      name: '@compliance/dsh-client-user-menu'

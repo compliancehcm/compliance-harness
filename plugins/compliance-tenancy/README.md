@@ -102,6 +102,19 @@ the composition it selects decides which tools that agent has.
 
 None; this package assembles no provider request.
 
+## Rough edges to know about
+
+- **"Open configuration file" is still shown and will refuse.** The action is a
+  `settings.action` list entry registered by `ui-settings-general`, which cannot
+  be disabled (it declares the settings shell), and a list slot's entries cannot
+  be shadowed. So a non-admin sees the button and gets the panel's error state
+  when they use it. Honest, but not pretty.
+- **A patch targeting a row id that does not exist is silently ignored.** That is
+  how `ui-permission-presets` (the package name) instead of `ui-permission` (the
+  row id) left the Permission control visible while looking disabled. When
+  editing the overlays, check every id against
+  `packages/bundle/web-app/cordis.patch.yml`.
+
 ## Known Limitations and Deferred Work
 
 - **The provider credential is readable inside a backend.** Each backend needs
