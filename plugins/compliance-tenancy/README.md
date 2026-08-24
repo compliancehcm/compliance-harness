@@ -40,11 +40,28 @@ Two things are *not* keyed to it, and are set explicitly per backend:
 `DSH_AGENTS_HOME` (otherwise `~/.agents`, shared) and `TMPDIR` (otherwise the
 shared `/tmp`, which the sandbox makes writable).
 
-`HOME` is also set to the user's root, which is what makes the workspace picker
-usable: the browse picker's default listing root is `homedir()`
-(`packages/host/directory-picker-browse/src/index.ts:218`), so a user opens
-straight into their own folder and can create and choose paths inside it. Nothing
-else on the machine exists in their namespace.
+### What the user sees, and what the platform keeps
+
+```
+<usersRoot>/<sha256(sub)>/
+├── workspace/     ← HOME and the process cwd. Empty. The user's own space.
+└── .state/        ← the platform's; hidden from the picker by default
+    ├── harness/       $DSH_HOME: sessions, settings, credentials, profiles
+    ├── tmp/           $TMPDIR
+    ├── agents/        $DSH_AGENTS_HOME
+    ├── OWNER          which subject owns this hashed directory
+    └── backend.log
+```
+
+`HOME` points at `workspace/`, not at the user's root, and that distinction is
+the whole reason the picker is usable: the browse picker lists `homedir()` by
+default (`packages/host/directory-picker-browse/src/index.ts:218`). Pointing it
+at the root — which the first version did — opened the dialog onto the harness's
+own plumbing, so "create a workspace" showed sessions, settings and a log file
+instead of somewhere blank to put work.
+
+Nothing else on the machine exists in the namespace, so the picker cannot leave
+the user's tree even by typing a path.
 
 ## Layout
 

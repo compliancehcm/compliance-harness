@@ -98,7 +98,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
         env: await backendCredentials(ctx, config.forwardCredentials),
         patches: admins.has(key) ? config.adminPatches : config.userPatches,
       })
-      return await startBackend(spec, port, `${paths.root}/backend.log`)
+      return await startBackend(spec, port, `${paths.state}/backend.log`)
     },
   })
 

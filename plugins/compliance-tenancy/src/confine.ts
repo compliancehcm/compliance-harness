@@ -19,14 +19,25 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-/** Where one user's confined backend lives on disk. */
+/**
+ * Where one user's confined backend lives on disk.
+ *
+ * The layout separates what the USER sees from what the PLATFORM keeps. The
+ * first version of this pointed `HOME` at the user's root, which made the
+ * workspace picker open onto the harness's own plumbing — sessions, settings,
+ * credentials, a backend log — instead of onto somewhere blank to put work. So
+ * `workspace` is `HOME` and the process cwd, and everything else lives in a
+ * sibling `.state` the picker does not show by default.
+ */
 export interface UserPaths {
-  /** The user's root; the only writable tree inside the jail. */
+  /** The user's root: the only writable tree inside the jail. */
   readonly root: string
+  /** `HOME` and the process cwd. Starts empty; the user creates folders here. */
+  readonly workspace: string
+  /** Platform state, beside `workspace` rather than inside it. */
+  readonly state: string
   /** `$DSH_HOME`: sessions, settings, credentials, presets, profiles. */
   readonly home: string
-  /** The default workspace, and the process cwd. */
-  readonly workspace: string
   /** `$TMPDIR`, so the sandbox's writable temp root is per user, not shared. */
   readonly tmp: string
   /** `$DSH_AGENTS_HOME`, which is otherwise `~/.agents` and shared. */
@@ -94,7 +105,10 @@ function backendEnv(
 ): Record<string, string> {
   return {
     PATH: `${harness.nodeRoot}/bin:/usr/bin:/bin`,
-    HOME: paths.root,
+    // HOME is the workspace area, not the user's root: it is what the browse
+    // picker lists by default, so it must be the blank place work goes rather
+    // than the directory holding the harness's own state.
+    HOME: paths.workspace,
     DSH_HOME: paths.home,
     TMPDIR: paths.tmp,
     DSH_AGENTS_HOME: paths.agents,

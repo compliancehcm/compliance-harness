@@ -48,14 +48,16 @@ export function userDirName(subject: string): string {
  */
 export function provision(usersRoot: string, subject: string): UserPaths {
   const root = `${usersRoot}/${userDirName(subject)}`
+  const state = `${root}/.state`
   const paths: UserPaths = {
     root,
-    home: `${root}/home`,
     workspace: `${root}/workspace`,
-    tmp: `${root}/tmp`,
-    agents: `${root}/agents`,
+    state,
+    home: `${state}/harness`,
+    tmp: `${state}/tmp`,
+    agents: `${state}/agents`,
   }
-  for (const dir of [root, paths.home, paths.workspace, paths.tmp, paths.agents]) {
+  for (const dir of [root, paths.workspace, state, paths.home, paths.tmp, paths.agents]) {
     mkdirSync(dir, { recursive: true, mode: DIR_MODE })
   }
   writeIdentityNote(paths, subject)
@@ -72,7 +74,7 @@ export function provision(usersRoot: string, subject: string): UserPaths {
  */
 function writeIdentityNote(paths: UserPaths, subject: string): void {
   writeFileSync(
-    `${paths.root}/OWNER`,
+    `${paths.state}/OWNER`,
     `subject: ${subject}\n`,
     { mode: 0o600 },
   )
