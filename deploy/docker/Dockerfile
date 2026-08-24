@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Compliance AI harness image: the dsh web UI with this deployment's five
+# Compliance AI harness image: the dsh web UI with this deployment's six
 # compliance plugins already composed — the SSO gate, per-user tenancy, the
-# brand occupants, the user menu and the ALMA MCP connection.
+# brand occupants, the user menu, the ALMA MCP connection and ECharts charts.
 #
 # Two things decide the shape of this file:
 #
@@ -59,7 +59,7 @@ ENV DSH_HOME=/opt/compliance-ai/gateway-home
 # Overlay rows name packages by SPECIFIER, not by path, so each plugin package
 # is linked into the profile before any overlay can resolve it. The
 # `declares no dsh.bundle` warning is expected: these are plugins, not bundles.
-RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu compliance-alma-mcp; do \
+RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu compliance-alma-mcp compliance-echarts; do \
       node --import tsx/esm apps/cli/src/bin.ts plugin --profile web add "link:/app/plugins/$plugin" || exit 1; \
     done
 

@@ -187,6 +187,7 @@ if [[ $TENANCY == on ]]; then
   backend_packages=(
     "$HARNESS_ROOT/plugins/compliance-brand"
     "$HARNESS_ROOT/plugins/compliance-user-menu"
+    "$HARNESS_ROOT/plugins/compliance-echarts"
   )
   backend_patches=(
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
@@ -195,6 +196,10 @@ if [[ $TENANCY == on ]]; then
     # rows it carries no machine paths and no origin, so there is nothing for the
     # environment to fill in — a deployment wanting other models edits the file.
     "$HARNESS_ROOT/plugins/compliance-llm-openrouter.overlay.yml"
+    # Charts in the conversation. Committed rather than rendered for the same
+    # reason as the LLM default: no machine paths, no origin, nothing for the
+    # environment to fill in.
+    "$HARNESS_ROOT/plugins/compliance-echarts.overlay.yml"
   )
   if [[ $ALMA == on ]]; then
     backend_packages+=("$HARNESS_ROOT/plugins/compliance-alma-mcp")
@@ -227,13 +232,14 @@ YAML
   } > "$tenancy_overlay"
   patches+=("$tenancy_overlay")
 else
-  # Single-harness mode: no per-user backend, so the brand, user-menu and ALMA
-  # rows belong to the gateway's own composition instead of to a backend's.
+  # Single-harness mode: no per-user backend, so the brand, user-menu, charts and
+  # ALMA rows belong to the gateway's own composition instead of to a backend's.
   printf 'compliance-entrypoint: tenancy is OFF — every signed-in user shares one harness and one workspace.\n' >&2
   patches+=(
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-user-menu.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-llm-openrouter.overlay.yml"
+    "$HARNESS_ROOT/plugins/compliance-echarts.overlay.yml"
   )
   [[ $ALMA == on ]] && patches+=("$alma_overlay")
 fi

@@ -1,10 +1,11 @@
 # Compliance AI harness image
 
-The dsh web UI with this deployment's five plugins already composed: the SSO
+The dsh web UI with this deployment's six plugins already composed: the SSO
 gate (`plugins/sso-auth`), per-user tenancy (`plugins/compliance-tenancy`), the
 brand occupants (`plugins/compliance-brand`), the sidebar user menu
-(`plugins/compliance-user-menu`) and the ALMA MCP connection
-(`plugins/compliance-alma-mcp`).
+(`plugins/compliance-user-menu`), the ALMA MCP connection
+(`plugins/compliance-alma-mcp`) and ECharts charts in the conversation
+(`plugins/compliance-echarts`).
 
 | File | Role |
 |---|---|
@@ -122,6 +123,16 @@ by default, `deepseek/deepseek-v4-pro` beside it), so `OPENROUTER_API_KEY` is th
 one a deployment must supply. `DEEPSEEK_API_KEY` stays forwarded because the
 shipped `web_search` tool still resolves it — drop the row or the variable
 together.
+
+## Charts
+
+`plugins/compliance-echarts` gives the model a `render_chart` tool and renders its
+calls as charts in the conversation. It has no environment knobs — its overlay is
+committed with the tool's limits, and it needs no credential and no network:
+Apache ECharts is vendored into the plugin (Apache-2.0; provenance in
+`plugins/compliance-echarts/vendor/README.md`) and served from the harness's own
+origin, fetched by a browser only when a conversation actually shows a chart. See
+`plugins/compliance-echarts/README.md`.
 
 ## ALMA needs no redirect URI registered anywhere
 
