@@ -1,0 +1,120 @@
+name: Docker image
+
+# Build the Compliance AI harness image — the dsh web UI with this
+# deployment's four compliance plugins composed — and publish it to this
+# repository's GitHub Container Registry.
+#
+# The image installs and builds from source inside the builder stage (the
+# gateway runs the tsx source launch, the per-user backends run the built CLI),
+# so this is a long job by design rather than a thin packaging step.
+
+on:
+  push:
+    branches:
+      - master
+      - 'feat/compliance-**'
+    tags:
+      - 'v*'
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      - '**/*.md'
+  pull_request:
+    paths:
+      - 'deploy/docker/**'
+      - '.github/workflows/docker-image.yml'
+      - '.dockerignore'
+  workflow_dispatch:
+    inputs:
+      push:
+        description: Publish the image to ghcr.io (off builds it only)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+# A superseded push should not queue a second full source build behind a stale one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI runs must never report to the production telemetry endpoint.
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  image:
+    name: build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # ghcr.io rejects an uppercase path, and a repository name is not
+      # guaranteed lowercase.
+      - name: Resolve image reference
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}/compliance-ai" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # A pull request builds without credentials; nothing is published from a
+      # fork-editable ref.
+      - name: Log in to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.ref }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=Compliance AI harness
+            org.opencontainers.image.description=dsh web UI with the SSO gate, per-user tenancy, brand and user-menu plugins composed
+
+      - name: Build and publish
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
+          load: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The client build stamps the commit into its artifacts and would
+          # otherwise read it from git, which the build context excludes.
+          build-args: |
+            DSH_CLIENT_COMMIT_HASH=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Summarize
+        run: |
+          {
+            echo '### Compliance AI image'
+            echo
+            echo "digest: \`${{ steps.build.outputs.digest }}\`"
+            echo
+            echo 'tags:'
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+            echo 'Run it with the flags in `deploy/docker/README.md` — bubblewrap needs a kernel privilege the default container profile withholds.'
+          } >> "$GITHUB_STEP_SUMMARY"
