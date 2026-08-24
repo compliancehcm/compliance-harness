@@ -36,7 +36,7 @@
         # Credential references handed to each backend, resolved from the
         # gateway's credential store. A user can read these inside their own
         # backend — see the README's threat model.
-        forwardCredentials: [DEEPSEEK_API_KEY]
+        forwardCredentials: [DEEPSEEK_API_KEY, OPENROUTER_API_KEY]
 
         # Linked into every user's profile so the overlays below can name our
         # own plugin packages by name.
@@ -52,9 +52,11 @@
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-alma-mcp.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-llm-openrouter.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-user.overlay.yml
         adminPatches:
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-alma-mcp.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-llm-openrouter.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-admin.overlay.yml
