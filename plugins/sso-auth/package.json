@@ -1,0 +1,16 @@
+{
+  "name": "@compliance/dsh-sso-auth",
+  "description": "OAuth2/OIDC SSO gate for the dsh Web UI: an authenticating reverse proxy in front of the harness webserver",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.ts",
+    "src"
+  ]
+}

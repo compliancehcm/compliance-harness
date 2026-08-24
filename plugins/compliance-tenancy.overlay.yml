@@ -1,0 +1,57 @@
+# Loader overlay: turn the gate into a multi-user platform.
+#
+# Apply this AFTER plugins/sso-auth.overlay.yml — that one moves the harness
+# webserver to a loopback port and puts the gate on the public one; this one adds
+# the tenancy service the gate then routes through.
+#
+# With this row present, the gateway's own harness is never reached: every
+# request goes to the requesting user's own confined backend instead. The
+# gateway process keeps a harness it does not use, which is the cost of running
+# the supervisor as a dsh plugin rather than a separate program.
+
+- insert:
+    - id: compliance-tenancy
+      name: '@compliance/dsh-tenancy'
+      config:
+        # One subdirectory per user, named by a hash of their `sub` claim.
+        # Each holds workspace/, home/ ($DSH_HOME), tmp/ and agents/.
+        usersRoot: /home/lucas/.compliance-ai/users
+
+        # Mounted read-only into every backend. Backends run the BUILT CLI
+        # (apps/cli/lib/bin.js), so `pnpm run build` must have been run.
+        harnessRoot: /home/lucas/dev/ai/compliance-harness
+
+        # 'bwrap' confines each backend to its own directory — reads included.
+        # 'none' is refused unless deliberately written here, because a tenancy
+        # plugin running unconfined looks isolated and is not.
+        confinement: bwrap
+
+        # A backend is a Node process of a few hundred megabytes. The cap turns
+        # the (N+1)th concurrent user into a waiting page instead of an
+        # out-of-memory kill that takes every other user down.
+        portRange: [31000, 31200]
+        maxBackends: 12
+        idleReapMinutes: 15
+
+        # Credential references handed to each backend, resolved from the
+        # gateway's credential store. A user can read these inside their own
+        # backend — see the README's threat model.
+        forwardCredentials: [DEEPSEEK_API_KEY]
+
+        # Linked into every user's profile so the overlays below can name our
+        # own plugin packages by name.
+        pluginPackages:
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu
+
+        # The composition each role gets. The reduced one removes the
+        # administrative UI; the gateway policy is what actually refuses the
+        # endpoints behind it.
+        userPatches:
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-user.overlay.yml
+        adminPatches:
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-admin.overlay.yml

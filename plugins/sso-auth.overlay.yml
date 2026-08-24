@@ -1,0 +1,68 @@
+# Loader overlay: put the SSO gate in front of the harness webserver.
+#
+# Two rows, and both halves matter:
+#
+#  1. The `webserver` row moves to an OS-assigned loopback port. Replacing its
+#     whole config removes its `!!js ctx.webStartup.port ?? 3080` read — a patch
+#     replaces a row's complete config rather than deep-merging it — so `--port`
+#     is honoured by the sso-auth row below instead, which injects webStartup.
+#  2. The `sso-auth` row binds the public port and forwards to that loopback
+#     port, which it reads from `ctx.webServer.port` at activation.
+#
+# Fill in the four issuer-specific values before booting; every field is
+# validated at load, and an unknown field is rejected rather than ignored.
+
+- id: webserver
+  config:
+    host: 127.0.0.1
+    port: 0
+
+# The harness prints its own URL and opens a browser at it — but under this
+# composition that URL is the INTERNAL, ungated port, so printing it hands every
+# operator the bypass and opening it walks straight through. Both are silenced;
+# the sso-auth row logs the gated URL instead.
+#
+# Consequence to know about: `--open` no longer opens a browser, because the
+# flag read lives in the config this row replaces.
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: false
+    surfaceContext: true
+    trustedHosts: !!js ctx.webStartup.trustedHosts
+
+- insert:
+    - id: sso-auth
+      name: '@compliance/dsh-sso-auth'
+      inject: [webStartup]
+      config:
+        # ── identity provider (Keycloak, or any OIDC issuer) ──────────────────
+        issuer: https://sso.compliancehcm.com.br/realms/ComplianceHCM
+        clientId: compliance-ai-harness
+        # Name of the env var or credential reference holding the secret — never
+        # the secret itself. Omit the field entirely for a public PKCE client.
+        clientSecretEnv: SSO_CLIENT_SECRET
+
+        # ── this deployment ──────────────────────────────────────────────────
+        # The origin browsers use. `publicUrl + /auth/callback` must be
+        # registered as a redirect URI on the provider's client, exactly.
+        publicUrl: http://127.0.0.1:3080
+
+        # ── who may enter ────────────────────────────────────────────────────
+        # Drop `require` entirely to admit any authenticated user.
+        require:
+          claimPath: resource_access.compliance-ai-harness.roles
+          anyOf: [dsh-access]
+
+        # ── who may reach the configuration plane ────────────────────────────
+        # Models, plugin configuration, agent presets, credentials and the
+        # dynamic Cordis runner are refused for everyone who does not match.
+        # Omitting this block makes NOBODY an administrator, which is the safe
+        # direction: the surface is closed rather than open.
+        admin:
+          claimPath: resource_access.compliance-ai-harness.roles
+          anyOf: [dsh-admin]
+
+        # ── session lifetime ─────────────────────────────────────────────────
+        sessionTtlMinutes: 480
+        idleTimeoutMinutes: 60
