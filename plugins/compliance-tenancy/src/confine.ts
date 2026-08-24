@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 /**
@@ -60,6 +60,39 @@ export interface HarnessPaths {
 const SYSTEM_READ_ONLY: readonly string[] = [
   '/usr', '/bin', '/sbin', '/lib', '/lib32', '/lib64', '/etc',
 ]
+
+/**
+ * Extra read-only binds for files under `/etc` that are SYMLINKS out of it.
+ *
+ * Binding `/etc` is not enough for these: the link is copied faithfully and its
+ * target is absent, so inside the jail it dangles. `/etc/resolv.conf` is the one
+ * that matters, and it is a symlink on the two most common hosts there are —
+ * `/mnt/wsl/resolv.conf` under WSL, `/run/systemd/resolve/stub-resolv.conf`
+ * under systemd-resolved. A backend with no resolver reaches nothing: the model
+ * provider and every MCP server fail as `EAI_AGAIN`, which reads like an outage
+ * rather than like a missing mount.
+ *
+ * @returns bwrap arguments binding each resolved target that lies outside the
+ * trees already bound.
+ */
+function escapedEtcBinds(): string[] {
+  const args: string[] = []
+  for (const path of ['/etc/resolv.conf']) {
+    if (!existsSync(path)) continue
+    let target: string
+    try {
+      target = realpathSync(path)
+    } catch {
+      // A dangling link on the host itself: nothing to bind, and the host's own
+      // resolution is already broken.
+      continue
+    }
+    if (target === path) continue
+    if (SYSTEM_READ_ONLY.some(tree => target === tree || target.startsWith(`${tree}/`))) continue
+    args.push('--ro-bind', target, target)
+  }
+  return args
+}
 
 /**
  * Resolve the installation paths from the running gateway.
@@ -159,6 +192,7 @@ export function launchSpec(
     if (existsSync(tree)) args.push('--ro-bind', tree, tree)
   }
   args.push(
+    ...escapedEtcBinds(),
     '--ro-bind', harness.nodeRoot, harness.nodeRoot,
     '--ro-bind', harness.harnessRoot, harness.harnessRoot,
     // The one writable tree. Everything the user's harness owns lives here.
