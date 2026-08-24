@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Compliance AI harness image: the dsh web UI with this deployment's four
+# Compliance AI harness image: the dsh web UI with this deployment's five
 # compliance plugins already composed — the SSO gate, per-user tenancy, the
-# brand occupants and the user menu.
+# brand occupants, the user menu and the ALMA MCP connection.
 #
 # Two things decide the shape of this file:
 #
@@ -59,7 +59,7 @@ ENV DSH_HOME=/opt/compliance-ai/gateway-home
 # Overlay rows name packages by SPECIFIER, not by path, so each plugin package
 # is linked into the profile before any overlay can resolve it. The
 # `declares no dsh.bundle` warning is expected: these are plugins, not bundles.
-RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu; do \
+RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu compliance-alma-mcp; do \
       node --import tsx/esm apps/cli/src/bin.ts plugin --profile web add "link:/app/plugins/$plugin" || exit 1; \
     done
 
@@ -95,7 +95,13 @@ ENV CI=true \
     SSO_PORT=3080 \
     SSO_SCOPES="openid profile email" \
     SSO_SESSION_TTL_MINUTES=480 \
-    SSO_IDLE_TIMEOUT_MINUTES=60
+    SSO_IDLE_TIMEOUT_MINUTES=60 \
+    ALMA_ENABLED=on \
+    ALMA_MCP_URL=https://mcp.compliancehcm.com.br/mcp \
+    ALMA_SERVER_NAME=alma \
+    ALMA_SCOPES="openid profile" \
+    ALMA_REFRESH_SKEW_SECONDS=120 \
+    ALMA_TOOL_CALL_TIMEOUT_MS=300000
 
 # One volume, and it is the one holding user data: every user's workspace,
 # sessions, settings and credentials live under it.

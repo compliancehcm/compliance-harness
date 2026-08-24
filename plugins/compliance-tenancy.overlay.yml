@@ -43,6 +43,7 @@
         pluginPackages:
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-alma-mcp
 
         # The composition each role gets. The reduced one removes the
         # administrative UI; the gateway policy is what actually refuses the
@@ -50,8 +51,10 @@
         userPatches:
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-alma-mcp.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-user.overlay.yml
         adminPatches:
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-brand.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-user-menu.overlay.yml
+          - /home/lucas/dev/ai/compliance-harness/plugins/compliance-alma-mcp.overlay.yml
           - /home/lucas/dev/ai/compliance-harness/plugins/compliance-tenancy/role-admin.overlay.yml

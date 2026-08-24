@@ -1,14 +1,15 @@
 # Compliance AI harness image
 
-The dsh web UI with this deployment's four plugins already composed: the SSO
+The dsh web UI with this deployment's five plugins already composed: the SSO
 gate (`plugins/sso-auth`), per-user tenancy (`plugins/compliance-tenancy`), the
-brand occupants (`plugins/compliance-brand`) and the sidebar user menu
-(`plugins/compliance-user-menu`).
+brand occupants (`plugins/compliance-brand`), the sidebar user menu
+(`plugins/compliance-user-menu`) and the ALMA MCP connection
+(`plugins/compliance-alma-mcp`).
 
 | File | Role |
 |---|---|
 | `Dockerfile` | Two stages: install + `pnpm run build` + link the plugin packages into the `web` profile; then a runtime stage with bubblewrap |
-| `entrypoint.sh` | Renders the two loader overlays from the environment, then starts the gateway |
+| `entrypoint.sh` | Renders the loader overlays from the environment, then starts the gateway |
 | `../../.github/workflows/docker-image.yml` | Builds and publishes to `ghcr.io/<owner>/<repo>/compliance-ai` |
 
 ## What is inside, and why it is large
@@ -105,9 +106,31 @@ Optional, with the image's defaults:
 | `COMPLIANCE_PORT_RANGE_START` / `_END` | `31000` / `31200` | Loopback ports for backends |
 | `COMPLIANCE_FORWARD_CREDENTIALS` | `DEEPSEEK_API_KEY` | Variables handed to each backend |
 | `COMPLIANCE_TENANCY` | `on` | `off` runs one shared harness with the gate in front — no per-user isolation |
+| `ALMA_ENABLED` | `on` | `off` composes no ALMA connection at all |
+| `ALMA_MCP_URL` | `https://mcp.compliancehcm.com.br/mcp` | ALMA's MCP endpoint |
+| `ALMA_SERVER_NAME` | `alma` | Tool namespace; the model sees `mcp__alma__*` |
+| `ALMA_SCOPES` | `openid profile` | Scopes requested from ALMA |
+| `ALMA_REFRESH_SKEW_SECONDS` | `120` | Renew this long before an access token expires |
+| `ALMA_TOOL_CALL_TIMEOUT_MS` | `300000` | How long one ALMA tool call may take before the MCP SDK answers `-32001 Request timed out` |
+| `ALMA_CLIENT_ID` | — | Pin one pre-registered OAuth client; unset means each workspace registers itself dynamically |
+| `ALMA_CLIENT_SECRET` | — | That client's secret, for a confidential pinned client. Appended to `COMPLIANCE_FORWARD_CREDENTIALS` automatically, because the plugin resolves it in the backend |
 
 Provider credentials (`DEEPSEEK_API_KEY`, optionally `DEEPSEEK_BASE_URL`) are
 read from the gateway's environment and forwarded per the table above.
+
+## ALMA needs no redirect URI registered anywhere
+
+The ALMA plugin registers itself with ALMA's authorization server dynamically
+(RFC 7591) and declares `SSO_PUBLIC_URL` + `/alma/callback` as its own redirect
+URI in that registration — so unlike `SSO_PUBLIC_URL/auth/callback`, this one is
+not configured on the Keycloak client and needs nothing from an administrator.
+`ALMA_CLIENT_ID` pins a pre-registered client instead, and then that client must
+accept exactly `SSO_PUBLIC_URL/alma/callback`.
+
+Nobody is signed into ALMA by being signed into the harness: each user connects
+once, from the settings panel's **Connect ALMA** action or by opening
+`/alma/connect`. Until then their workspace simply has no ALMA tools. See
+`plugins/compliance-alma-mcp/README.md`.
 
 ## Overlays are generated, not copied
 
@@ -116,6 +139,13 @@ copying `plugins/*.overlay.yml`, because the committed overlays carry one
 machine's absolute paths (`/home/lucas/...`) and one realm's issuer. The
 generated pair is the same composition with the image's paths and the
 container's environment.
+
+The ALMA overlay is the exception to the location, not to the rule: it is
+rendered into `$COMPLIANCE_HARNESS_ROOT/.compliance-render/` because a bwrap
+backend binds only the node root, the harness root and the user's own tree — a
+`--patch` under `/run` would not exist inside the jail. Its directory must be
+writable at container start; `ALMA_ENABLED=off` is the way out on a read-only
+image tree.
 
 **This is a drift surface.** When a row id, config field or overlay file changes
 under `plugins/`, the heredocs in `entrypoint.sh` must change with it — nothing
