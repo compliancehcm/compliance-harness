@@ -1,0 +1,23 @@
+# Loader overlay: charts in the conversation.
+#
+# One row, not two: the ECharts bundle is served by this plugin's own route
+# rather than shipped as a second client-module package, because a client-module
+# row is created and applied at EVERY web boot — a megabyte of charting library
+# would be paid for by every session, chart or no chart. Behind the route the
+# browser fetches it only when a conversation actually contains a chart.
+#
+# `skills` is deliberately absent from `inject`: the row reads the skill registry
+# optionally, so a composition without it still gets a working tool.
+- insert:
+    - id: echarts-charts
+      name: '@compliance/dsh-echarts'
+      inject: [tools, webServer]
+      config:
+        assetPath: /echarts/echarts.min.js
+        toolName: render_chart
+        maxOptionBytes: 262144
+        maxSeries: 12
+        defaultHeight: 320
+        minHeight: 160
+        maxHeight: 720
+        registerSkill: true

@@ -1,0 +1,25 @@
+{
+  "name": "@compliance/dsh-echarts",
+  "description": "Apache ECharts charts rendered in the conversation: a render_chart tool, its chart card, and a charting skill",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "src",
+    "skills",
+    "vendor"
+  ]
+}
