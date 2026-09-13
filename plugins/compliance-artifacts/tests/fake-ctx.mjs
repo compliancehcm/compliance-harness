@@ -1,0 +1,126 @@
+// A stand-in for the slice of the Cordis context this plugin uses: a webserver
+// with real exact/prefix matching and a real listener, tool and skill registries
+// that record what was registered, effect collection, and the index-injection
+// table.
+//
+// The webserver half is real rather than mocked so the smoke can drive the
+// artifact route over HTTP and read back the actual status, headers and body —
+// the CSP header is the security property of this plugin, and asserting it on a
+// handler called directly would not prove it reaches the wire.
+import { createServer } from 'node:http'
+
+/**
+ * Build the fake context and start its listener.
+ * @param options - `skillsAvailable` false hides the skill registry.
+ * @returns the ctx plus the handles a test needs to inspect it.
+ */
+export async function createFakeCtx(options = {}) {
+  const exact = new Map()
+  const prefixes = []
+  const tools = new Map()
+  const skills = new Map()
+  const effects = []
+  const listeners = new Map()
+  const logs = []
+
+  const server = createServer((req, res) => {
+    const pathname = new URL(req.url, 'http://x').pathname
+    // Exact table first, then longest-prefix-wins, the same order the real
+    // WebServer uses.
+    let route = exact.get(pathname)
+    if (route === undefined) {
+      let best = -1
+      for (const candidate of prefixes) {
+        const { path } = candidate
+        if ((pathname === path || pathname.startsWith(`${path}/`)) && path.length > best) {
+          best = path.length
+          route = candidate
+        }
+      }
+    }
+    if (route === undefined) {
+      res.writeHead(404)
+      res.end()
+      return
+    }
+    Promise.resolve(route.handler(req, res)).catch((error) => {
+      logs.push(['error', String(error)])
+      if (!res.headersSent) { res.writeHead(400); res.end() }
+    })
+  })
+  await new Promise((resolve) => { server.listen(0, '127.0.0.1', resolve) })
+
+  const ctx = {
+    logger: {
+      info: (...args) => { logs.push(['info', args.map(String).join(' ')]) },
+      warn: (...args) => { logs.push(['warn', args.map(String).join(' ')]) },
+      error: (...args) => { logs.push(['error', args.map(String).join(' ')]) },
+    },
+    webServer: {
+      register(route) {
+        if (route.kind === 'exact') {
+          exact.set(route.path, route)
+          return () => { exact.delete(route.path) }
+        }
+        if (route.kind === 'prefix') {
+          prefixes.push(route)
+          return () => {
+            const at = prefixes.indexOf(route)
+            if (at !== -1) prefixes.splice(at, 1)
+          }
+        }
+        throw new Error(`fake-ctx serves only exact and prefix routes, got ${route.kind}`)
+      },
+    },
+    tools: {
+      register(definition) {
+        if (tools.has(definition.name)) throw new Error(`duplicate tool ${definition.name}`)
+        tools.set(definition.name, definition)
+        return () => { tools.delete(definition.name) }
+      },
+    },
+    skills: {
+      register(skill) {
+        if (skills.has(skill.name)) throw new Error(`duplicate skill ${skill.name}`)
+        skills.set(skill.name, skill)
+        return () => { skills.delete(skill.name) }
+      },
+    },
+    get(serviceName) {
+      if (serviceName === 'skills') return options.skillsAvailable === false ? undefined : ctx.skills
+      return undefined
+    },
+    effect(setup, label) {
+      // The real ctx.effect runs the setup immediately and keeps the disposer;
+      // so does this, so a registration that throws throws here.
+      effects.push({ label, dispose: setup() })
+    },
+    on(event, listener) {
+      const bucket = listeners.get(event) ?? []
+      bucket.push(listener)
+      listeners.set(event, bucket)
+      return () => { listeners.set(event, bucket.filter(entry => entry !== listener)) }
+    },
+  }
+
+  return {
+    ctx,
+    origin: `http://127.0.0.1:${String(server.address().port)}`,
+    tools,
+    skills,
+    logs,
+    effects,
+    /** Run one event's listeners the way the host does. */
+    emit(event, payload) {
+      for (const listener of listeners.get(event) ?? []) listener(payload)
+    },
+    /** Dispose every effect, newest first, as fiber teardown would. */
+    disposeAll() {
+      for (const effect of [...effects].reverse()) effect.dispose?.()
+      effects.length = 0
+    },
+    async close() {
+      await new Promise((resolve) => { server.close(resolve) })
+    },
+  }
+}

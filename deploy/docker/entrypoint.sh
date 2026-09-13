@@ -190,6 +190,10 @@ if [[ $TENANCY == on ]]; then
     "$HARNESS_ROOT/plugins/compliance-echarts"
     "$HARNESS_ROOT/plugins/compliance-pandas"
     "$HARNESS_ROOT/plugins/compliance-xlsx"
+    # Has a client half, so the package directory is required here and not
+    # only the overlay: linkPlugins symlinks it into the backend's
+    # profiles/web/node_modules, which is what makes client.js servable.
+    "$HARNESS_ROOT/plugins/compliance-artifacts"
   )
   backend_patches=(
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
@@ -206,6 +210,10 @@ if [[ $TENANCY == on ]]; then
     # the workbook theme are the only settings, and neither varies per machine.
     "$HARNESS_ROOT/plugins/compliance-pandas.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-xlsx.overlay.yml"
+    # Interactive artifacts beside the conversation. Committed rather than
+    # rendered for the same reason: the CDN allowlist is a deployment choice
+    # written in the file, not a value the environment fills in.
+    "$HARNESS_ROOT/plugins/compliance-artifacts.overlay.yml"
   )
   if [[ $ALMA == on ]]; then
     backend_packages+=("$HARNESS_ROOT/plugins/compliance-alma-mcp")
@@ -249,6 +257,7 @@ else
     "$HARNESS_ROOT/plugins/compliance-echarts.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-pandas.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-xlsx.overlay.yml"
+    "$HARNESS_ROOT/plugins/compliance-artifacts.overlay.yml"
   )
   [[ $ALMA == on ]] && patches+=("$alma_overlay")
 fi
