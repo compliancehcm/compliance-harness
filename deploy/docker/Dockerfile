@@ -59,7 +59,8 @@ ENV DSH_HOME=/opt/compliance-ai/gateway-home
 # Overlay rows name packages by SPECIFIER, not by path, so each plugin package
 # is linked into the profile before any overlay can resolve it. The
 # `declares no dsh.bundle` warning is expected: these are plugins, not bundles.
-RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu compliance-alma-mcp compliance-echarts; do \
+RUN for plugin in sso-auth compliance-tenancy compliance-brand compliance-user-menu compliance-alma-mcp \
+                  compliance-echarts compliance-pandas compliance-xlsx compliance-artifacts; do \
       node --import tsx/esm apps/cli/src/bin.ts plugin --profile web add "link:/app/plugins/$plugin" || exit 1; \
     done
 
