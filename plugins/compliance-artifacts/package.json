@@ -1,0 +1,24 @@
+{
+  "name": "@compliance/dsh-artifacts",
+  "description": "Interactive HTML artifacts rendered beside the chat: create_artifact and update_artifact, their conversation card, and a right-Sidebar tab that frames the page",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "src",
+    "skills"
+  ]
+}

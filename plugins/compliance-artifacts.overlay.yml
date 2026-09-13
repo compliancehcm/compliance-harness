@@ -1,0 +1,33 @@
+# Loader overlay: interactive HTML artifacts beside the conversation.
+#
+# One row with a client half. `webServer` is in `inject` because the document
+# route is not optional — a card with nothing to frame is not a degraded
+# experience, it is a broken one. `skills` is deliberately absent: the row reads
+# the skill registry optionally, so a composition without it still gets tools.
+#
+# `allowedOrigins` is the CDN allowlist the artifact document's own CSP carries.
+# It is a deployment decision as much as a code one: the USER's browser must
+# reach these hosts, so on a closed corporate network a page that loads a library
+# breaks. Trim the list to what this deployment can actually reach.
+#
+# `root` is left unset so the plugin derives it from DSH_HOME. Artifacts are
+# products of the conversation, not files of the user's project, so they do not
+# go into the session workspace.
+- insert:
+    - id: artifacts
+      name: '@compliance/dsh-artifacts'
+      inject: [tools, webServer]
+      config:
+        routePath: /artifacts
+        createToolName: create_artifact
+        updateToolName: update_artifact
+        maxHtmlBytes: 524288
+        maxVersions: 50
+        registerSkill: true
+        allowedOrigins:
+          - https://cdn.jsdelivr.net
+          - https://cdnjs.cloudflare.com
+          - https://unpkg.com
+          - https://cdn.tailwindcss.com
+          - https://fonts.googleapis.com
+          - https://fonts.gstatic.com
