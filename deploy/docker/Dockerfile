@@ -69,15 +69,28 @@ FROM ${NODE_IMAGE}
 # bubblewrap is the confinement the tenancy plugin probes for at boot; it fails
 # loudly rather than serving unconfined, so it must be present even though the
 # container also needs the kernel privilege to use it (see the README).
-# bubblewrap is the confinement; python3 with pandas and openpyxl is what the
-# compliance-pandas and compliance-xlsx rows spawn. Those two resolve the
-# interpreter at boot and refuse to register without it, so a runtime stage
-# missing them would fail the whole composition rather than degrade — the
-# builder stage's own python3 does not reach here.
+#
+# python3 with pandas and openpyxl is what the compliance-pandas and
+# compliance-xlsx rows spawn. Both resolve the interpreter at boot and refuse to
+# register without it, so a runtime stage missing them fails the whole
+# composition rather than degrading — and the builder stage's own python3 does
+# not reach here.
+#
+# The libraries come from pip, not apt, for two reasons. Bookworm has no
+# python3-pyarrow at all (apache-arrow is not in the release), so the apt form
+# could not install it; and bookworm's python3-pandas is 1.5.3 with
+# python3-openpyxl 3.0.9, while the plugin suites are written and run against
+# the pinned versions below. Installing what apt happens to carry would ship a
+# combination nobody tested. Bookworm's python3.11 is PEP 668 managed, hence
+# --break-system-packages: this image has no other Python consumer to protect.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     bubblewrap ca-certificates \
-    python3 python3-pandas python3-openpyxl python3-pyarrow \
+    python3 python3-pip \
+  && pip3 install --break-system-packages --no-cache-dir \
+    pandas==3.0.5 \
+    openpyxl==3.1.5 \
+    pyarrow==25.0.1 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app /app
