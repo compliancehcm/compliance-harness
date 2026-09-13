@@ -32,6 +32,15 @@ env:
 
 jobs:
   preview:
+    # Upstream only. Unlike the Issue lanes this one is not wrong in a fork — it
+    # is merely unconfigured: the `dsh-build-preview` Pages project, its Access
+    # application and all four credentials (CLOUDFLARE_API_TOKEN,
+    # CLOUDFLARE_ACCOUNT_ID, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET)
+    # belong to the upstream account, so every fork pull request builds the
+    # whole workspace and then fails at `wrangler pages deploy` with an empty
+    # token. A fork that wants previews creates its own Pages project and
+    # replaces this condition.
+    if: ${{ github.repository == 'deepseek-harness/deepseek-harness' }}
     runs-on: ubuntu-24.04
     name: cloudflare pages preview
     steps:
