@@ -1,0 +1,23 @@
+# Loader overlay: tabular analysis with pandas.
+#
+# `subprocess` is in the row's `inject` because the tool cannot work without it:
+# the interpreter is resolved at apply and every call spawns the bundled runner.
+# `skills` is deliberately absent — the row reads the skill registry optionally,
+# so a composition without it still gets a working tool.
+#
+# The interpreter and its libraries are the deployment's to provide; the image
+# built by deploy/docker/Dockerfile installs python3, pandas and openpyxl.
+- insert:
+    - id: pandas-analysis
+      name: '@compliance/dsh-pandas'
+      inject: [tools, subprocess]
+      config:
+        pythonBin: python3
+        toolName: run_pandas
+        timeoutMs: 120000
+        graceMs: 5000
+        maxSources: 4
+        maxCodeBytes: 16384
+        maxPreviewRows: 20
+        maxOutputBytes: 32768
+        registerSkill: true

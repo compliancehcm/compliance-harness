@@ -1,0 +1,33 @@
+# Loader overlay: formatted spreadsheets as deliverables.
+#
+# `subprocess` is in the row's `inject` because the tool cannot work without it:
+# the interpreter is resolved at apply and every call spawns the bundled builder.
+# `skills` is deliberately absent — the row reads the skill registry optionally,
+# so a composition without it still gets a working tool.
+#
+# `theme` is the Compliance workbook look. It is committed here rather than
+# rendered by the entrypoint because it carries no machine paths and no origin:
+# a deployment wanting other colours edits this block. The HTML plugin will need
+# the same palette; extracting one source belongs to that change.
+- insert:
+    - id: xlsx-workbook
+      name: '@compliance/dsh-xlsx'
+      inject: [tools, subprocess]
+      config:
+        pythonBin: python3
+        toolName: write_xlsx
+        timeoutMs: 120000
+        graceMs: 5000
+        maxSheets: 12
+        maxRows: 100000
+        maxColumns: 64
+        maxOutputBytes: 32768
+        registerSkill: true
+        theme:
+          fontName: Calibri
+          fontSize: 11
+          headerFill: FF1F3864
+          headerFont: FFFFFFFF
+          totalsFill: FFD9E2F3
+          bandFill: FFF2F5FB
+          borderColor: FFBFBFBF

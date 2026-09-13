@@ -69,8 +69,15 @@ FROM ${NODE_IMAGE}
 # bubblewrap is the confinement the tenancy plugin probes for at boot; it fails
 # loudly rather than serving unconfined, so it must be present even though the
 # container also needs the kernel privilege to use it (see the README).
+# bubblewrap is the confinement; python3 with pandas and openpyxl is what the
+# compliance-pandas and compliance-xlsx rows spawn. Those two resolve the
+# interpreter at boot and refuse to register without it, so a runtime stage
+# missing them would fail the whole composition rather than degrade — the
+# builder stage's own python3 does not reach here.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends bubblewrap ca-certificates \
+  && apt-get install -y --no-install-recommends \
+    bubblewrap ca-certificates \
+    python3 python3-pandas python3-openpyxl python3-pyarrow \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app /app
