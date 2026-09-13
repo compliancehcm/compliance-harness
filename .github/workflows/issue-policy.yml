@@ -14,6 +14,13 @@ permissions:
 jobs:
   policy:
     name: Issue policy
+    # Upstream only. `.github/issue-management/policy.mjs` addresses every API
+    # call as `/repos/<config.organization>/<config.repository>/…` from
+    # config.json and never reads GITHUB_REPOSITORY, so in a fork it would
+    # validate the same-numbered pull request in deepseek-harness rather than
+    # the one that triggered it. The App token is scoped to that owner too, so
+    # without the gate the job fails at token creation on every fork PR.
+    if: ${{ github.repository == 'deepseek-harness/deepseek-harness' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy

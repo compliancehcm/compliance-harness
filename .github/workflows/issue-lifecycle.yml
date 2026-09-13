@@ -36,6 +36,11 @@ concurrency:
 jobs:
   lifecycle:
     name: Issue lifecycle
+    # Upstream only, for the same reason as the Issue policy lane: this one
+    # MUTATES the `DSH Issue Management` Project board named in config.json, and
+    # both the board and the App token belong to deepseek-harness. A fork has
+    # neither, so the job fails at token creation on every event.
+    if: ${{ github.repository == 'deepseek-harness/deepseek-harness' }}
     # Runs on every pull_request_review event so the check reports success rather
     # than a gray "skipped" segment. The token-creating and board-mutating steps
     # are gated at step level (a skipped step does not gray the job): only a
