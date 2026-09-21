@@ -207,7 +207,8 @@ cross-site navigation with any other method is still refused.
 with no role claim at all, so requiring the id_token would mean asking every
 deployment to add a protocol mapper before the gate works. Both tokens arrive in
 the same token-endpoint response over the same TLS channel from the same issuer,
-so provenance — not location — is what makes the claim trustworthy. Identity
+so what makes the claim trustworthy is which endpoint answered, not where the
+value sat. Identity
 still comes from the id_token alone. A denial names both tokens and what each
 held, because "the claim is absent" and "it holds the wrong value" need different
 fixes.

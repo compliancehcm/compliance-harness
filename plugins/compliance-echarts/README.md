@@ -70,7 +70,8 @@ colors for exactly this reason.
 
 `vendor/echarts.min.js` is the unmodified `dist/echarts.min.js` of `echarts`
 6.1.0, Apache-2.0, committed because `plugins/` is not a pnpm workspace member and
-has no `node_modules`. Provenance, hash and refresh procedure are in
+has no `node_modules`. The release it was taken from, its hash and the
+refresh procedure are in
 [`vendor/README.md`](vendor/README.md); the upstream `LICENSE` and `NOTICE` are
 preserved beside it. The repository's `THIRD_PARTY_NOTICES.md` is generated from
 workspace manifests and `vendor/README.md`, neither of which reaches this

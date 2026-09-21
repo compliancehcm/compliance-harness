@@ -46,7 +46,7 @@ function isSafeTopLevelNavigation(request: EdgeRequest): boolean {
 }
 
 /**
- * Refuse a request whose provenance says it came from another site.
+ * Refuse a request whose Origin or Sec-Fetch-Site says it came from another site.
  *
  * Two independent signals, because neither is universally present: modern
  * browsers send `Sec-Fetch-Site`, and anything with a body-bearing cross-origin

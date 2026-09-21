@@ -163,7 +163,8 @@ headless browser. See `plugins/compliance-artifacts/README.md`.
 `plugins/compliance-echarts` gives the model a `render_chart` tool and renders its
 calls as charts in the conversation. It has no environment knobs — its overlay is
 committed with the tool's limits, and it needs no credential and no network:
-Apache ECharts is vendored into the plugin (Apache-2.0; provenance in
+Apache ECharts is vendored into the plugin (Apache-2.0; the release it was
+taken from and its hash are in
 `plugins/compliance-echarts/vendor/README.md`) and served from the harness's own
 origin, fetched by a browser only when a conversation actually shows a chart. See
 `plugins/compliance-echarts/README.md`.

@@ -32,9 +32,12 @@ const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, 
 // SDK in an ancestor `node_modules`; on a clean checkout it is `Cannot find
 // module '@modelcontextprotocol/sdk/client/index.js'`.
 const sdkRequire = createRequire(`${REPO_ROOT}/packages/mcp/mcp-client/package.json`)
-const { Client } = await import(pathToFileURL(sdkRequire.resolve('@modelcontextprotocol/sdk/client/index.js')).href)
-const { StreamableHTTPClientTransport } = await import(
-  pathToFileURL(sdkRequire.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href)
+// `@modelcontextprotocol/client`, not `.../sdk/client/index.js`: the SDK split
+// into scoped packages and the harness moved with it, so the old deep path
+// resolves to nothing. `Client` and the streamable transport now share one
+// entry point — see `packages/mcp/mcp-client/src/connection.ts`.
+const { Client, StreamableHTTPClientTransport } = await import(
+  pathToFileURL(sdkRequire.resolve('@modelcontextprotocol/client')).href)
 
 const results = []
 const check = (label, fn) => { try { fn(); results.push(['PASS', label]) } catch (error) { results.push(['FAIL', `${label}: ${error.message}`]) } }
