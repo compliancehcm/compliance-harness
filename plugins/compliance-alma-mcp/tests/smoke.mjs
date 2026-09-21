@@ -214,6 +214,24 @@ check('an off-site returnTo is refused, not followed', () => {
   assert.equal(hostileLanded.headers.get('location'), '/')
 })
 
+// ── ALMA forgot a registration that never completed a grant ─────────────────
+// The failure this guards is invisible from in here: a stale id is sent to the
+// authorization endpoint, which answers `client ID … was not found in the
+// server's client registry` as a page the browser never returns from — so
+// nothing in this plugin can notice, and the only exit (Disconnect) is offered
+// solely while connected. The id is therefore discarded on the way in.
+harness.records.set('alma-mcp/alma', {
+  kind: 'grant',
+  payload: { clientId: 'forgotten-by-alma', clientSecret: 'stale' },
+})
+const registeredBefore = alma.state.clients.size
+const revived = await get('/alma/connect')
+const revivedClientId = new URL(revived.headers.get('location')).searchParams.get('client_id')
+check('a registration ALMA never honoured is replaced, not reused', () => {
+  assert.notEqual(revivedClientId, 'forgotten-by-alma')
+  assert.equal(alma.state.clients.size, registeredBefore + 1)
+})
+
 // ── config validation ────────────────────────────────────────────────────────
 check('an unknown field is rejected', () => {
   assert.throws(() => resolveConfig({

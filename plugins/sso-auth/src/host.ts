@@ -35,7 +35,13 @@ export interface CredentialsFacade {
  */
 export interface TenancyFacade {
   target: (request: { readonly subject: string; readonly admin: boolean }) => Promise<
-    | { readonly kind: 'ready'; readonly host: string; readonly port: number }
+    | {
+      readonly kind: 'ready'
+      readonly host: string
+      readonly port: number
+      /** Session cookie the backend requires; replayed by the proxy. */
+      readonly cookie?: string
+    }
     | { readonly kind: 'at-capacity'; readonly active: number; readonly max: number }
     | { readonly kind: 'failed'; readonly reason: string }
   >

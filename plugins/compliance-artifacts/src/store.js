@@ -189,3 +189,50 @@ export async function listArtifacts(config, sessionId) {
   }
   return metas.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
+
+/**
+ * Every artifact in the store, newest first, across all sessions.
+ *
+ * The per-session listing above answers "what did THIS conversation produce";
+ * this one answers "where did I put that dashboard", which is a question about
+ * the person rather than about a session. Scoping is by store root and nothing
+ * else: under tenancy `root` derives from the user's own `DSH_HOME` inside
+ * their jail, so a user's store already contains exactly their artifacts.
+ *
+ * A directory that is not a legal id, or holds no readable manifest, is
+ * skipped rather than failing the listing: one damaged artifact must not cost
+ * the person the index of all the others.
+ *
+ * @param config - the validated plugin configuration.
+ * @returns the manifests, newest updated first; empty when nothing was created.
+ */
+export async function listAllArtifacts(config) {
+  let sessions
+  try {
+    sessions = await readdir(config.root, { withFileTypes: true })
+  } catch (error) {
+    if (error.code === 'ENOENT') return []
+    throw new ArtifactStoreError(`artifacts: cannot list ${config.root}: ${error.message}`)
+  }
+  const metas = []
+  for (const session of sessions) {
+    if (!session.isDirectory() || !ID_PATTERN.test(session.name)) continue
+    let entries
+    try {
+      entries = await readdir(join(config.root, session.name), { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !ID_PATTERN.test(entry.name)) continue
+      let meta
+      try {
+        meta = await readMeta(config, session.name, entry.name)
+      } catch {
+        continue
+      }
+      if (meta !== undefined) metas.push(meta)
+    }
+  }
+  return metas.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+}

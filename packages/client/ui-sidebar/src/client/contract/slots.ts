@@ -1,7 +1,9 @@
 /**
  * Sidebar slot contract: the registrant-side props composition for the
  * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
- * owns column geometry (fold state machine, brand row, New Session);
+ * owns column geometry (fold state machine, brand row, New Session), with
+ * `sidebar.nav.action` directly under that button for destinations that are
+ * peers of starting a Session rather than settings;
  * everything between the section header and the list bottom is the
  * `sidebar.workspaces` registrant's (ui-workspace), and the foot is the
  * `sidebar.settings` registrant's (ui-settings), followed by optional footer
@@ -44,6 +46,17 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * package's 'sidebar' entry; each action receives only the column state.
      */
     'sidebar.footer.action': { kind: 'list'; scope: 'root'; owner: SidebarFooterActionOwnerProps }
+    /**
+     * Navigation destinations directly under New Session. Declared by this
+     * package's 'sidebar' entry; empty in the shipped composition.
+     *
+     * Distinct from `sidebar.footer.action` by meaning, not by geometry: an
+     * entry here is a place in the application a person goes to, ranking with
+     * starting a Session, while the foot is for controls that act on the app
+     * around them. Each entry receives only the column state, so it must
+     * render as a rail icon too.
+     */
+    'sidebar.nav.action': { kind: 'list'; scope: 'root'; owner: SidebarNavActionOwnerProps }
   }
 }
 
@@ -85,6 +98,12 @@ export interface SidebarFooterActionOwnerProps {
   wide: boolean
 }
 
+/** Owner share of a navigation destination rendered under New Session. */
+export interface SidebarNavActionOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+}
+
 /**
  * Registrant-private injected share (arrives via the register inject
  * factory). The shell keeps only its own controls: starting a Session from
@@ -114,5 +133,6 @@ export type SidebarRootComponentProps =
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
+    | 'sidebar.nav.action'
   >
   & SidebarRootInjected & PropsLocale<'sidebar'>

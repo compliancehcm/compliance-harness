@@ -227,7 +227,13 @@ export function pandasTool(ctx, config) {
           preview: { type: 'object', description: 'Head of the result: its columns and rows.' },
           previewTruncated: { type: 'boolean', description: 'True when rows were withheld from the preview.' },
           stdout: { type: 'string', description: 'Whatever the snippet printed.' },
-          output: { type: ['string', 'null'], description: 'Path the result was written to, or null.' },
+          // `oneOf`, not `type: ['string', 'null']`: the harness enforces a JSON
+          // Schema subset on an output schema in which `type` is a single string,
+          // and a type array fails the whole plugin tree at boot.
+          output: {
+            oneOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Path the result was written to, or null.',
+          },
         },
       },
       /**

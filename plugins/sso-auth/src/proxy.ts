@@ -92,7 +92,18 @@ export interface ProxyOptions {
 
 /** Where one request should go, or why it cannot go anywhere. */
 export type TargetResolution =
-  | { readonly kind: 'target'; readonly host: string; readonly port: number }
+  | {
+    readonly kind: 'target'
+    readonly host: string
+    readonly port: number
+    /**
+     * A Cookie header to present to the target on this request's behalf. The
+     * browser never holds it: the backend binds its session cookie to the
+     * loopback authority `forwardHeaders` rewrites Host to, which is not an
+     * authority the browser ever addresses.
+     */
+    readonly cookie?: string
+  }
   /** Answered with `status` and this text rather than forwarded. */
   | { readonly kind: 'unavailable'; readonly status: number; readonly message: string }
 
@@ -145,8 +156,31 @@ function isDocumentRequest(req: IncomingMessage, edge: EdgeRequest): boolean {
   return (header(edge, 'accept') ?? '').includes('text/html')
 }
 
+/**
+ * The browser-session cookie name `client-connection` mints, by prefix. The
+ * gateway owns this namespace on a proxied request: it presents the backend's
+ * own cookie and drops whatever the browser happens to hold, because the
+ * browser's copy is bound to some other authority — a stale one from a
+ * backend that has since come back on a different port, or from a `dsh web`
+ * the user once ran directly. Cookies ignore ports, so both arrive here.
+ */
+const BACKEND_AUTH_COOKIE_PREFIX = 'dsh-auth-'
+
+/** Replace the backend's own auth cookies in a Cookie header, keeping the rest. */
+function withBackendCookie(inbound: string | string[] | undefined, cookie: string): string {
+  const raw = Array.isArray(inbound) ? inbound.join('; ') : inbound ?? ''
+  const kept = raw.split(';')
+    .map(crumb => crumb.trim())
+    .filter(crumb => crumb !== '' && !crumb.startsWith(BACKEND_AUTH_COOKIE_PREFIX))
+  return [...kept, cookie].join('; ')
+}
+
 /** Copy inbound headers for forwarding, normalizing provenance. */
-function forwardHeaders(headers: IncomingHttpHeaders, targetAuthority: string): IncomingHttpHeaders {
+function forwardHeaders(
+  headers: IncomingHttpHeaders,
+  targetAuthority: string,
+  cookie?: string,
+): IncomingHttpHeaders {
   const out: IncomingHttpHeaders = {}
   for (const [name, value] of Object.entries(headers)) {
     if (HOP_BY_HOP.has(name) || value === undefined) continue
@@ -157,6 +191,7 @@ function forwardHeaders(headers: IncomingHttpHeaders, targetAuthority: string): 
   // decision, so both are normalized to the internal authority here.
   out['host'] = targetAuthority
   delete out['origin']
+  if (cookie !== undefined) out['cookie'] = withBackendCookie(out['cookie'], cookie)
   return out
 }
 
@@ -225,11 +260,11 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
   const forward = (
     req: IncomingMessage,
     res: ServerResponse,
-    target: { host: string; port: number },
+    target: { host: string; port: number; cookie?: string },
     body?: Buffer,
   ): void => {
     const targetAuthority = `${target.host}:${String(target.port)}`
-    const headers = forwardHeaders(req.headers, targetAuthority)
+    const headers = forwardHeaders(req.headers, targetAuthority, target.cookie)
     // A buffered body has already left the socket, so its length is now known
     // exactly — restate it rather than forwarding a stale or chunked header.
     if (body !== undefined) {
@@ -310,7 +345,11 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
           else respondText(res, resolved.status, resolved.message)
           return
         }
-        forward(req, res, { host: resolved.host, port: resolved.port }, body)
+        forward(req, res, {
+          host: resolved.host,
+          port: resolved.port,
+          ...resolved.cookie !== undefined && { cookie: resolved.cookie },
+        }, body)
         return
       }
       if (decision.kind === 'deny') {
@@ -351,7 +390,7 @@ export async function startProxy(options: ProxyOptions): Promise<RunningProxy> {
         socket.end(`HTTP/1.1 ${String(resolved.status)} Unavailable\r\nConnection: close\r\n\r\n`)
         return
       }
-      const headers = forwardHeaders(req.headers, `${resolved.host}:${String(resolved.port)}`)
+      const headers = forwardHeaders(req.headers, `${resolved.host}:${String(resolved.port)}`, resolved.cookie)
       own(socket)
       const release = options.trackUpgrade?.(req)
       if (release !== undefined) socket.once('close', release)
