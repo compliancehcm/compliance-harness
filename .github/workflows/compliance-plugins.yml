@@ -1,0 +1,94 @@
+name: Compliance plugins
+
+# The deployment layer's own tests. `plugins/` sits outside
+# `vitest.config.ts`'s include globs on purpose — these packages are this
+# deployment's layer rather than the shipped harness — so no upstream lane
+# reaches them, and until this workflow they were hand-run only.
+#
+# Deliberately NOT filtered by `paths: plugins/**`. The failure this lane exists
+# to catch is the harness moving under the layer: a `packages/` change is what
+# broke `compliance-pandas` at boot (#11), and a plugins-only filter would have
+# skipped exactly that run.
+
+on:
+  push:
+    branches:
+      - master
+      - 'feat/compliance-**'
+      - 'fix/compliance-**'
+      - 'chore/compliance-**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+  PRIMARY_NODE_VERSION: '24'
+
+jobs:
+  smokes:
+    name: plugin smokes
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      # Required, not an optimization: the fake tool registries load the real
+      # schema validator out of `@deepseek-ai/dsh-tools`, and the alma smoke
+      # mounts the built `@deepseek-ai/dsh-mcp-client` the way a backend does.
+      - name: Build
+        run: pnpm run build
+
+      # Without these, the pandas and xlsx end-to-end arms self-skip and the
+      # lane reports green over half a test. From apt rather than pip for the
+      # same reason the runtime image does it — see deploy/docker/Dockerfile.
+      - name: Install python for the data plugins
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-pandas python3-openpyxl
+
+      - name: Smokes
+        run: |
+          status=0
+          for plugin in compliance-alma-mcp compliance-artifacts compliance-echarts \
+                        compliance-pandas compliance-xlsx; do
+            echo "::group::$plugin"
+            node "plugins/$plugin/tests/smoke.mjs" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+      # The artifact frame's opaque origin is a security property, and asserting
+      # it from the design instead of from a real browser is what this test
+      # refuses to do. Its own steps: the only ones needing a browser.
+      #
+      # `plugins/compliance-echarts/tests/browser.mjs` is deliberately NOT here.
+      # Unlike this one it is not self-contained: it drives a harness that must
+      # already be serving at an origin passed to it, and its assertions are
+      # whole-app ones (no console error after a 3s settle). Booting that here
+      # would buy a lane that fails for reasons unrelated to the plugin, and a
+      # flaky lane is worth less than no lane. Run it by hand as its own header
+      # documents.
+      - name: Install Chromium
+        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium
+
+      - name: Browser checks
+        run: node plugins/compliance-artifacts/tests/browser.mjs
