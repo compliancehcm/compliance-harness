@@ -8,6 +8,19 @@
 // stdin `{ data }` mode and the offset-based collected readers are reproduced
 // because `src/python.js` depends on both.
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
+
+// The REAL schema validator, not a stand-in. A registry that accepts any schema
+// is what let `output: { type: ['string', 'null'] }` reach a boot and take the
+// whole plugin tree down with it: the harness enforces a JSON Schema subset at
+// `ctx.tools.register`, so a fake that skips it tests a contract the product
+// does not have.
+//
+// Resolved through the CLI's dependency graph, the way these plugins resolve
+// harness packages at runtime — `plugins/` is not a workspace member and has no
+// node_modules of its own. That makes `pnpm run build` a precondition here.
+const harnessRequire = createRequire(new URL('../../../apps/cli/package.json', import.meta.url))
+const { assertSupportedJsonSchema } = harnessRequire('@deepseek-ai/dsh-tools')
 
 /**
  * Build the fake context.
@@ -75,6 +88,12 @@ export function createFakeCtx(options = {}) {
     tools: {
       register(definition) {
         if (tools.has(definition.name)) throw new Error(`duplicate tool ${definition.name}`)
+        // What the harness itself does at this point, so a schema the product
+        // would refuse fails in the smoke instead of at a user's boot.
+        if (definition.output?.schema === undefined) {
+          throw new TypeError(`tool "${definition.name}" must declare output { schema, render }`)
+        }
+        assertSupportedJsonSchema(definition.output.schema)
         tools.set(definition.name, definition)
         return () => { tools.delete(definition.name) }
       },

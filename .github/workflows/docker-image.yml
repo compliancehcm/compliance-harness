@@ -1,8 +1,8 @@
 name: Docker image
 
 # Build the Compliance AI harness image — the dsh web UI with this
-# deployment's four compliance plugins composed — and publish it to this
-# repository's GitHub Container Registry.
+# deployment's compliance plugins composed (deploy/docker/README.md lists them)
+# — and publish it to this repository's GitHub Container Registry.
 #
 # The image installs and builds from source inside the builder stage (the
 # gateway runs the tsx source launch, the per-user backends run the built CLI),
@@ -85,7 +85,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=Compliance AI harness
-            org.opencontainers.image.description=dsh web UI with the SSO gate, per-user tenancy, brand and user-menu plugins composed
+            org.opencontainers.image.description=dsh web UI with this deployment's compliance plugin layer composed (see deploy/docker/README.md)
 
       - name: Build and publish
         id: build

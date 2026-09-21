@@ -79,7 +79,7 @@ directory, so this package's own vendor directory is where that attribution live
 ## Tests
 
 ```sh
-node plugins/compliance-echarts/tests/smoke.mjs               # no build, no network, no key
+node plugins/compliance-echarts/tests/smoke.mjs               # needs pnpm run build; no network, no key
 node plugins/compliance-echarts/scripts/vendor-echarts.mjs    # verify the vendored bytes
 
 # the browser half, against a harness that already has this plugin composed

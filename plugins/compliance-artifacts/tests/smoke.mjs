@@ -9,7 +9,9 @@
 //
 //   node plugins/compliance-artifacts/tests/smoke.mjs
 //
-// It needs no build, no network and no API key. What it CANNOT reach is whether
+// It needs the harness built (`pnpm run build`), because the fake tool registry
+// runs the REAL schema validator out of `@deepseek-ai/dsh-tools` rather than a
+// stand-in. It needs no network and no API key. What it CANNOT reach is whether
 // the sandboxed frame actually executes scripts and loads an allowed CDN in a
 // real browser — that is `tests/browser.mjs`.
 import assert from 'node:assert/strict'

@@ -1,11 +1,27 @@
 # Compliance AI harness image
 
-The dsh web UI with this deployment's six plugins already composed: the SSO
-gate (`plugins/sso-auth`), per-user tenancy (`plugins/compliance-tenancy`), the
-brand occupants (`plugins/compliance-brand`), the sidebar user menu
-(`plugins/compliance-user-menu`), the ALMA MCP connection
-(`plugins/compliance-alma-mcp`) and ECharts charts in the conversation
-(`plugins/compliance-echarts`).
+The dsh web UI with this deployment's whole plugin layer already composed:
+
+| Plugin | What it adds |
+|---|---|
+| `plugins/sso-auth` | the OIDC gate in front of everything |
+| `plugins/compliance-tenancy` | one confined harness per authenticated user |
+| `plugins/compliance-brand` | the brand occupants |
+| `plugins/compliance-user-menu` | the signed-in user's row in the sidebar footer |
+| `plugins/compliance-llm-openrouter` | OpenRouter as the composed default LLM |
+| `plugins/compliance-alma-mcp` | ALMA's tools, over MCP, per user |
+| `plugins/compliance-echarts` | `render_chart`, drawn in the conversation |
+| `plugins/compliance-pandas` | `run_pandas` over tabular files |
+| `plugins/compliance-xlsx` | `write_xlsx`, formatted workbooks as deliverables |
+| `plugins/compliance-artifacts` | `create_artifact`/`update_artifact`, the panel, and the gallery |
+
+Ten overlays, nine packages: `compliance-llm-openrouter` is an overlay over the
+shipped `llm-pi-ai` row rather than a package of its own.
+
+**This list is a drift surface.** It is prose, and nothing gates it against
+`entrypoint.sh` — where the same set is written twice, as `backend_packages`
+and `backend_patches`. It was wrong once already, describing six plugins after
+three had been added.
 
 | File | Role |
 |---|---|
@@ -123,6 +139,24 @@ by default, `deepseek/deepseek-v4-pro` beside it), so `OPENROUTER_API_KEY` is th
 one a deployment must supply. `DEEPSEEK_API_KEY` stays forwarded because the
 shipped `web_search` tool still resolves it — drop the row or the variable
 together.
+
+## Data, spreadsheets and artifacts
+
+`compliance-pandas` and `compliance-xlsx` need a python3 with pandas and
+openpyxl, which the runtime stage installs — see the Dockerfile's own note on
+why they come from apt rather than pip, and why the builder stage's python3
+cannot stand in for them. Neither plugin has an environment knob: the
+interpreter name and the workbook theme are their whole configuration, and both
+are committed in the overlays.
+
+`compliance-artifacts` serves interactive HTML pages from the harness's own
+origin, sandboxed into an opaque origin, with a CDN allowlist carried on each
+document's own CSP. That allowlist (`allowedOrigins` in the overlay) is a
+deployment decision: the USER's browser has to reach those hosts, so on a closed
+network a page that loads a library breaks. Its gallery — `Meus artefatos`,
+under New Session — lists every artifact a person has made, and renders each
+preview as a live scaled frame rather than a screenshot, so the image carries no
+headless browser. See `plugins/compliance-artifacts/README.md`.
 
 ## Charts
 

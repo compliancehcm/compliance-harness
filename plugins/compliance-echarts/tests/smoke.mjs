@@ -9,7 +9,9 @@
 //
 //   node plugins/compliance-echarts/tests/smoke.mjs
 //
-// It needs no build, no network and no API key.
+// It needs the harness built (`pnpm run build`), because the fake tool registry
+// runs the REAL schema validator out of `@deepseek-ai/dsh-tools` rather than a
+// stand-in. It needs no network and no API key.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createContext, runInContext } from 'node:vm'

@@ -62,6 +62,9 @@ setting I wrote took effect".
 node plugins/compliance-pandas/tests/smoke.mjs
 ```
 
-No build, no network, no API key. The end-to-end checks spawn the real runner
+Needs the harness built (`pnpm run build`): the fake tool registry runs the real
+schema validator out of `@deepseek-ai/dsh-tools` rather than a stand-in, so a
+schema the harness would refuse fails here instead of at a user's boot. No
+network, no API key. The end-to-end checks spawn the real runner
 and self-skip when `python3` with pandas is not installed, so the file still
 reports on a bare host.

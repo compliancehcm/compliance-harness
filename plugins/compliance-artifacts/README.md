@@ -135,7 +135,7 @@ move that copy into dictionaries first.
 ## Tests
 
 ```sh
-node plugins/compliance-artifacts/tests/smoke.mjs     # no build, no network, no key
+node plugins/compliance-artifacts/tests/smoke.mjs     # needs pnpm run build; no network, no key
 node plugins/compliance-artifacts/tests/browser.mjs   # real Chromium
 ```
 
