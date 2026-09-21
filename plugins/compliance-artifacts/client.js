@@ -39,9 +39,11 @@ window.__ModuleLoader__.load({
 		const react = require("react");
 		const {
 			Button,
+			IconArchiveOutline20,
 			IconCloseOutline16,
 			IconFolderOpenOutline16,
 			IconFullscreenOutline16,
+			IconRefreshOutline16,
 			IconSearchOutline16,
 			IconWarningOutline16,
 		} = require("@deepseek-ai/dsh-client-ui-primitives");
@@ -172,9 +174,9 @@ window.__ModuleLoader__.load({
 			alignItems: "center",
 			gap: "12px",
 			padding: "12px 14px",
-			border: "1px solid var(--dsw-alias-border-2, rgba(127,127,127,0.28))",
+			border: "1px solid var(--dsw-alias-border-l3)",
 			borderRadius: "10px",
-			background: "var(--dsw-alias-bg-2, transparent)",
+			background: "var(--dsw-alias-bg-layer-2)",
 		};
 
 		/**
@@ -195,7 +197,7 @@ window.__ModuleLoader__.load({
 
 			if (failure !== null) {
 				return jsxs("div", {
-					style: { ...CARD_STYLE, color: "var(--dsw-alias-text-error, #d33)" },
+					style: { ...CARD_STYLE, color: "var(--dsw-alias-state-error-primary)" },
 					children: [
 						jsx(IconWarningOutline16, {}),
 						jsx("span", { children: failure }),
@@ -278,7 +280,7 @@ window.__ModuleLoader__.load({
 					width: "100%",
 					height: "100%",
 					border: "0",
-					background: "var(--dsw-alias-bg-1, #fff)",
+					background: "var(--dsw-alias-bg-layer-1)",
 				},
 			});
 		}
@@ -363,14 +365,19 @@ window.__ModuleLoader__.load({
 		 * Pure, and exported for test: this is the whole search behaviour, and
 		 * driving it through a rendered grid would test React instead.
 		 * @param artifacts - the manifests from the index.
-		 * @param filter - `{ text, from, to }`, each optional.
+		 * @param filter - `{ text, from, to, archived }`, each optional.
 		 * @returns the matching manifests, in the order given.
 		 */
 		function filterArtifacts(artifacts, filter) {
 			const needle = (filter.text ?? "").trim().toLowerCase();
 			const from = filter.from ?? "";
 			const to = filter.to ?? "";
+			const wantArchived = filter.archived === true;
 			return artifacts.filter((meta) => {
+				// Archived is a partition, not a filter: the two views never
+				// overlap, so an archived artifact is out of the default gallery
+				// however the text and dates are set.
+				if ((typeof meta.archivedAt === "string") !== wantArchived) return false;
 				if (needle !== "") {
 					const title = typeof meta.title === "string" ? meta.title.toLowerCase() : "";
 					// The id is searchable too: it is what a link carries, so a person
@@ -417,12 +424,18 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * One card: a live scaled preview, the title, and when it last changed.
-		 * @param props - `{ meta, routePath, onOpen }`.
+		 * One card: a live scaled preview, the title, when it last changed, and
+		 * the control that files it away.
+		 *
+		 * A wrapper with two sibling buttons rather than one button holding
+		 * another: a button inside a button is invalid, and browsers recover
+		 * from it by flattening the markup, which loses one of the two actions.
+		 *
+		 * @param props - `{ meta, routePath, archived, onOpen, onArchive }`.
 		 * @returns the card element.
 		 */
 		function GalleryCard(props) {
-			const { meta, routePath, onOpen } = props;
+			const { meta, routePath, archived, onOpen, onArchive } = props;
 			const frameHost = react.useRef(null);
 			const near = useNearViewport(frameHost);
 			const [width, setWidth] = react.useState(0);
@@ -441,7 +454,7 @@ window.__ModuleLoader__.load({
 
 			const scale = width === 0 ? 0 : width / THUMB_WIDTH;
 
-			return jsxs("button", {
+			const openCard = jsxs("button", {
 				type: "button",
 				onClick: () => { onOpen(meta); },
 				title: `${String(meta.title ?? "Artefato")} · abrir`,
@@ -449,10 +462,11 @@ window.__ModuleLoader__.load({
 					display: "flex",
 					flexDirection: "column",
 					textAlign: "left",
+					width: "100%",
 					padding: 0,
-					border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+					border: "1px solid var(--dsw-alias-border-l3)",
 					borderRadius: "12px",
-					background: "var(--dsw-alias-bg-2, transparent)",
+					background: "var(--dsw-alias-bg-layer-2)",
 					color: "inherit",
 					cursor: "pointer",
 					overflow: "hidden",
@@ -465,8 +479,8 @@ window.__ModuleLoader__.load({
 							width: "100%",
 							aspectRatio: `${String(THUMB_WIDTH)} / ${String(THUMB_HEIGHT)}`,
 							overflow: "hidden",
-							background: "var(--dsw-alias-bg-1, #fff)",
-							borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+							background: "var(--dsw-alias-bg-layer-1)",
+							borderBottom: "1px solid var(--dsw-alias-border-l3)",
 						},
 						children: near && scale > 0
 							? jsx("iframe", {
@@ -503,13 +517,41 @@ window.__ModuleLoader__.load({
 								children: String(meta.title ?? "Artefato"),
 							}),
 							jsx("span", {
-								style: { fontSize: "12px", opacity: 0.65 },
+								style: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary)" },
 								children: `${formatWhen(meta.updatedAt)} · versão ${String(meta.version ?? 1)}`,
 							}),
 						],
 					}),
 				],
 			});
+
+			const action = jsx("button", {
+				type: "button",
+				onClick: (event) => { event.stopPropagation(); onArchive(meta, !archived); },
+				title: archived ? "Desarquivar" : "Arquivar",
+				"aria-label": archived ? "Desarquivar" : "Arquivar",
+				style: {
+					position: "absolute",
+					top: "8px",
+					right: "8px",
+					display: "inline-flex",
+					alignItems: "center",
+					justifyContent: "center",
+					width: "28px",
+					height: "28px",
+					padding: 0,
+					border: "1px solid var(--dsw-alias-border-l3)",
+					borderRadius: "8px",
+					// Opaque, not transparent: it sits over the preview, which is
+					// an arbitrary page and may be any colour under it.
+					background: "var(--dsw-alias-bg-layer-1)",
+					color: "var(--dsw-alias-label-secondary)",
+					cursor: "pointer",
+				},
+				children: archived ? jsx(IconRefreshOutline16, {}) : jsx(IconArchiveOutline20, { size: 16 }),
+			});
+
+			return jsxs("div", { style: { position: "relative", minWidth: 0 }, children: [openCard, action] });
 		}
 
 		/**
@@ -522,6 +564,8 @@ window.__ModuleLoader__.load({
 			const [text, setText] = react.useState("");
 			const [from, setFrom] = react.useState("");
 			const [to, setTo] = react.useState("");
+			const [archivedView, setArchivedView] = react.useState(false);
+			const [busy, setBusy] = react.useState(null);
 			const { routePath } = settings();
 
 			// Re-read on every open rather than once: an artifact made in the
@@ -553,9 +597,48 @@ window.__ModuleLoader__.load({
 			}, [open]);
 
 			const shown = react.useMemo(
-				() => filterArtifacts(state.artifacts, { text, from, to }),
-				[state.artifacts, text, from, to],
+				() => filterArtifacts(state.artifacts, { text, from, to, archived: archivedView }),
+				[state.artifacts, text, from, to, archivedView],
 			);
+
+			const archivedCount = react.useMemo(
+				() => state.artifacts.filter(meta => typeof meta.archivedAt === "string").length,
+				[state.artifacts],
+			);
+
+			/**
+			 * File an artifact away, or bring it back.
+			 *
+			 * The list is replaced from the server's answer rather than guessed
+			 * at: the card leaves the current view either way, and a card that
+			 * vanished from a failed write would be a lie about what is on disk.
+			 */
+			const archive = react.useCallback(async (meta, archived) => {
+				const key = `${String(meta.sessionId)}/${String(meta.artifactId)}`;
+				setBusy(key);
+				try {
+					const response = await fetch(`${routePath}/archive`, {
+						method: "POST",
+						credentials: "same-origin",
+						headers: { "content-type": "application/json", accept: "application/json" },
+						body: JSON.stringify({ sessionId: meta.sessionId, artifactId: meta.artifactId, archived }),
+					});
+					if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+					const written = await response.json();
+					setState(current => ({
+						...current,
+						artifacts: current.artifacts.map(entry => (
+							entry.artifactId === written.artifactId && entry.sessionId === written.sessionId
+								? { ...entry, ...written.archivedAt === null ? { archivedAt: undefined } : { archivedAt: written.archivedAt } }
+								: entry
+						)),
+					}));
+				} catch (error) {
+					setState(current => ({ ...current, error: String(error?.message ?? error) }));
+				} finally {
+					setBusy(null);
+				}
+			}, [routePath]);
 
 			const openArtifactFromCard = react.useCallback((meta) => {
 				if (openArtifact === null) return;
@@ -570,8 +653,11 @@ window.__ModuleLoader__.load({
 				height: "32px",
 				padding: "0 10px",
 				borderRadius: "8px",
-				border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
-				background: "var(--dsw-alias-bg-1, #fff)",
+				border: "1px solid var(--dsw-alias-border-l3)",
+				// layer-2 sits one step above the panel's layer-1 in dark mode;
+				// in light mode the two are the same colour and the border is
+				// what separates them, which is why it is not optional.
+				background: "var(--dsw-alias-bg-layer-2)",
 				color: "inherit",
 				fontSize: "13px",
 			};
@@ -580,13 +666,16 @@ window.__ModuleLoader__.load({
 				// The overlay layer is click-through by contract; this entry opts
 				// back in, which is also what makes the backdrop dismissable.
 				style: {
-					position: "absolute",
+					// Fixed, not absolute: the overlay layer is itself positioned,
+					// so `absolute` anchors to ITS box — which left the sidebar
+					// undimmed and the panel off-centre. Fixed is the window.
+					position: "fixed",
 					inset: 0,
 					pointerEvents: "auto",
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "center",
-					background: "rgba(0,0,0,0.45)",
+					background: "var(--dsw-alias-bg-mask-1)",
 					padding: "24px",
 					zIndex: 40,
 				},
@@ -601,9 +690,9 @@ window.__ModuleLoader__.load({
 						width: "min(1180px, 100%)",
 						height: "min(820px, 100%)",
 						borderRadius: "14px",
-						border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
-						background: "var(--dsw-alias-bg-1, #fff)",
-						color: "var(--dsw-alias-label-primary, inherit)",
+						border: "1px solid var(--dsw-alias-border-l3)",
+						background: "var(--dsw-alias-bg-layer-1)",
+						color: "var(--dsw-alias-label-primary)",
 						overflow: "hidden",
 					},
 					children: [
@@ -614,10 +703,41 @@ window.__ModuleLoader__.load({
 								gap: "12px",
 								flexWrap: "wrap",
 								padding: "14px 16px",
-								borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+								borderBottom: "1px solid var(--dsw-alias-border-l3)",
 							},
 							children: [
-								jsx("strong", { style: { fontSize: "15px", marginRight: "auto" }, children: "Meus artefatos" }),
+								jsx("strong", { style: { fontSize: "15px" }, children: "Meus artefatos" }),
+								jsxs("div", {
+									style: {
+										display: "inline-flex",
+										marginRight: "auto",
+										border: "1px solid var(--dsw-alias-border-l3)",
+										borderRadius: "8px",
+										overflow: "hidden",
+									},
+									children: [false, true].map(wantArchived => jsx("button", {
+										type: "button",
+										onClick: () => { setArchivedView(wantArchived); },
+										"aria-pressed": archivedView === wantArchived,
+										style: {
+											padding: "0 12px",
+											height: "30px",
+											border: "none",
+											background: archivedView === wantArchived
+												? "var(--dsw-alias-interactive-bg-hover)"
+												: "transparent",
+											color: archivedView === wantArchived
+												? "var(--dsw-alias-label-primary)"
+												: "var(--dsw-alias-label-tertiary)",
+											font: "inherit",
+											fontSize: "13px",
+											cursor: "pointer",
+										},
+										children: wantArchived
+											? `Arquivados${archivedCount === 0 ? "" : ` (${String(archivedCount)})`}`
+											: "Ativos",
+									}, wantArchived ? "archived" : "active")),
+								}),
 								jsxs("label", {
 									style: { display: "inline-flex", alignItems: "center", gap: "6px" },
 									children: [
@@ -664,10 +784,12 @@ window.__ModuleLoader__.load({
 									? jsx("p", { style: { opacity: 0.7 }, children: "Carregando…" })
 									: shown.length === 0
 										? jsx("p", {
-											style: { opacity: 0.7 },
+											style: { color: "var(--dsw-alias-label-tertiary)" },
 											children: state.artifacts.length === 0
 												? "Você ainda não criou nenhum artefato."
-												: "Nenhum artefato corresponde a esses filtros.",
+												: archivedView && archivedCount === 0
+													? "Nada arquivado. O que você arquivar sai daqui da lista de ativos e continua abrindo pela conversa."
+													: "Nenhum artefato corresponde a esses filtros.",
 										})
 										: jsx("div", {
 											style: {
@@ -675,11 +797,19 @@ window.__ModuleLoader__.load({
 												gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
 												gap: "16px",
 											},
-											children: shown.map((meta) => jsx(GalleryCard, {
-												meta,
-												routePath,
-												onOpen: openArtifactFromCard,
-											}, `${String(meta.sessionId)}/${String(meta.artifactId)}`)),
+											children: shown.map((meta) => {
+												const key = `${String(meta.sessionId)}/${String(meta.artifactId)}`;
+												return jsx("div", {
+													style: { opacity: busy === key ? 0.5 : 1, transition: "opacity 120ms" },
+													children: jsx(GalleryCard, {
+														meta,
+														routePath,
+														archived: archivedView,
+														onOpen: openArtifactFromCard,
+														onArchive: archive,
+													}),
+												}, key);
+											}),
 										}),
 						}),
 					],
@@ -688,11 +818,24 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * The sidebar entry that raises the gallery.
-		 * @param props - the nav-action owner props; `wide` is the column state.
+		 * The sidebar entry that raises the gallery, at the column's foot.
+		 *
+		 * Geometry copied from the seat's existing occupant (ui-cordis: 42px
+		 * tall, 12px radius, transparent until hover, 36px square on the rail)
+		 * rather than invented, because the two sit in the same row and a
+		 * neighbour half a pixel off reads as a bug in both.
+		 *
+		 * `flex` is the part that is not cosmetic. This is a list seat, so the
+		 * row can hold more than one action — under this deployment it does,
+		 * for an administrator, whose composition keeps ui-cordis. That
+		 * occupant is `flex: none; width: 100%`, written when it was the only
+		 * one, so something has to yield or the row overflows. This entry is
+		 * what yields.
+		 *
+		 * @param props - the footer-action owner props; `wide` is the column state.
 		 * @returns the button element.
 		 */
-		function GalleryNavAction(props) {
+		function GalleryFooterAction(props) {
 			const wide = props.wide === true;
 			return jsxs("button", {
 				type: "button",
@@ -700,24 +843,32 @@ window.__ModuleLoader__.load({
 				"aria-label": "Meus artefatos",
 				title: "Meus artefatos",
 				style: {
-					display: "flex",
+					display: "inline-flex",
 					alignItems: "center",
 					justifyContent: wide ? "flex-start" : "center",
-					gap: "6px",
-					width: wide ? "100%" : "36px",
-					height: wide ? "34px" : "36px",
-					padding: wide ? "0 10px" : "0",
-					border: "0",
-					borderRadius: wide ? "10px" : "8px",
+					gap: wide ? "8px" : "0",
+					flex: wide ? "1 1 auto" : "none",
+					minWidth: 0,
+					width: wide ? "auto" : "36px",
+					height: wide ? "42px" : "36px",
+					padding: wide ? "0 10px 0 8px" : "0",
+					border: "none",
+					borderRadius: wide ? "12px" : "8px",
 					background: "transparent",
-					color: "var(--dsw-alias-label-primary, inherit)",
-					font: "inherit",
+					color: "var(--dsw-alias-label-primary)",
+					fontFamily: "inherit",
 					fontSize: "14px",
 					cursor: "pointer",
+					overflow: "hidden",
 				},
 				children: [
-					jsx(IconFolderOpenOutline16, { size: wide ? 14 : 18 }),
-					wide ? jsx("span", { style: { overflow: "hidden", whiteSpace: "nowrap" }, children: "Meus artefatos" }) : null,
+					jsx(IconFolderOpenOutline16, { size: wide ? 16 : 18 }),
+					wide
+						? jsx("span", {
+							style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+							children: "Meus artefatos",
+						})
+						: null,
 				],
 			});
 		}
@@ -769,10 +920,17 @@ window.__ModuleLoader__.load({
 			// the entry, the app frame holds the surface — so each is injected
 			// against its own declarer rather than assumed present. A composition
 			// with neither still gets the cards and the panel.
-			ctx.slots.inject("sidebar.nav.action", function* () {
+			//
+			// `sidebar.footer.action` and not a seat under New Session: the
+			// shipped sidebar declares nothing there, and adding one means
+			// editing `packages/client/ui-sidebar`, which every upstream sync
+			// would then have to reconcile. This deployment's layer is additive
+			// by rule, so the entry goes where a seat already exists. `order`
+			// puts it after the occupant that seat already has.
+			ctx.slots.inject("sidebar.footer.action", function* () {
 				yield ctx.slots.register(
-					{ name: "sidebar.nav.action", id: "compliance-artifacts-gallery", order: 10, label: "Meus artefatos" },
-					GalleryNavAction,
+					{ name: "sidebar.footer.action", id: "compliance-artifacts-gallery", order: 10, label: "Meus artefatos" },
+					GalleryFooterAction,
 				);
 			});
 

@@ -296,33 +296,6 @@
   max-width: 0;
 }
 
-/* Navigation seats under New Session. An unoccupied seat must cost the column
-   nothing, so the shipped composition looks exactly as it did before the seat
-   existed — but `:empty` cannot say so: renderSlot always leaves its own
-   `display: contents` wrapper in the DOM, so this container is never empty and
-   its entries are the wrapper's children, not its own. The separating margin
-   is therefore conditional on that wrapper actually holding something. */
-.navActions {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0 2px;
-}
-
-.navActions:has(> * > *) {
-  margin-bottom: 8px;
-}
-
-.collapsed .navActions {
-  align-items: center;
-  margin: 0;
-}
-
-.collapsed .navActions:has(> * > *) {
-  margin-bottom: 12px;
-}
-
 /* Region seat: always mounted so the foot never moves. Its trailing margin
    cancels the wide shell inset so the nested scrollbar can sit at the sidebar
    edge; the browser restores that inset inside its own rows. */

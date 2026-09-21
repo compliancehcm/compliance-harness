@@ -51,7 +51,7 @@ dsh Web 客户端的侧边栏让用户识别当前构建、启动新会话、将
 
 ### Slot 纪律
 
-声明感知的 `slots.inject()` 让替换包无论先于还是后于侧边栏激活都能生效。页脚承载 `sidebar.settings` 席位：侧边栏只渲染固定在底部的布局 slot，并共享其栏状态（`wide`）。`sidebar.nav.action` 是紧贴 New Session 下方的 list 席位，面向用户前往的目的地，而非作用于周围应用的控件——它与 `sidebar.footer.action` 的区别在语义，不在几何位置。出厂组合中它为空，未被占用时其容器不占空间，因此外壳的渲染与该席位存在之前完全一致；条目只收到 `wide`，所以也必须能渲染成轨道图标。`/client` 导出接口只包含插件主体（`apply`/`inject`）及约定类型；SidebarRoot、行组件与树派生仍由 slot 注册封装在包内。
+声明感知的 `slots.inject()` 让替换包无论先于还是后于侧边栏激活都能生效。页脚承载 `sidebar.settings` 席位：侧边栏只渲染固定在底部的布局 slot，并共享其栏状态（`wide`）。`/client` 导出接口只包含插件主体（`apply`/`inject`）及约定类型；SidebarRoot、行组件与树派生仍由 slot 注册封装在包内。
 
 </details>
 

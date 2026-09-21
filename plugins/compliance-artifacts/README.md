@@ -83,14 +83,38 @@ composition missing either still gets the cards and the panel:
 
 | Slot | Entry |
 |---|---|
-| `sidebar.nav.action` | the sidebar entry that raises the gallery |
+| `sidebar.footer.action` | the sidebar entry that raises the gallery |
 | `shell.overlay` | the gallery surface itself |
 
-`sidebar.nav.action` does not exist upstream. It is added by this deployment in
-`packages/client/ui-sidebar` — the one harness file this plugin needs — because
-the shipped sidebar declares no seat between New Session and the session list,
-and `sidebar.footer.action` is for controls acting on the app rather than for
-places a person goes to.
+Both seats already exist upstream, which is the point: this layer is additive,
+so nothing under `packages/` has to change and no upstream sync has to
+reconcile it. An earlier revision put the entry directly under New Session by
+declaring a new seat in `packages/client/ui-sidebar`; that was reverted, since
+a permanent fork of a live harness file is a poor price for eleven pixels of
+placement.
+
+The entry copies the geometry of the seat's existing occupant (ui-cordis) and
+sets `flex: 1 1 auto; min-width: 0` so that it is the one that yields: this is
+a list seat, an administrator's composition keeps ui-cordis, and that occupant
+is `flex: none; width: 100%` from when it was alone in the row.
+
+### Archiving, and why there is no delete
+
+A gallery needs a way to put something away, and the obvious one is wrong here.
+The conversation that produced an artifact keeps a card pointing at it, so
+deleting the files would turn a settled turn's button into a 404 — a tidy-up of
+the gallery must not rewrite history. `archivedAt` in `meta.json` is the whole
+mechanism: every version stays on disk, every URL keeps working, and what
+changes is which of the gallery's two views lists it.
+
+The flag survives an update, so a new version does not put back what the person
+filed away; unarchiving is their action, not the model's.
+
+`POST <routePath>/archive` carries `{ sessionId, artifactId, archived }`. It is
+the plugin's only write endpoint, and it sits outside the `/api` transport's
+Host/Origin fence — this is a plain `webServer` route — so it carries its own:
+a JSON content type is required (which a cross-origin form cannot set without
+a preflight) and a present `Origin` must match the request's Host.
 
 ### The thumbnails are live documents
 

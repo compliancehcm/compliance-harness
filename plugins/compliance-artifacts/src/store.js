@@ -159,6 +159,10 @@ export async function writeVersion(config, sessionId, artifactId, html, title) {
     version,
     createdAt: previous?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    // Carried across an update on purpose: a new version is not a reason to
+    // put an artifact the person archived back in their gallery. Unarchiving
+    // is their action, not the model's.
+    ...typeof previous?.archivedAt === 'string' && { archivedAt: previous.archivedAt },
     history: [...previous?.history ?? [], { version, title, at: new Date().toISOString(), bytes: Buffer.byteLength(html, 'utf8') }],
   }
   await writeFile(join(dir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`, 'utf8')
@@ -235,4 +239,35 @@ export async function listAllArtifacts(config) {
     }
   }
   return metas.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+}
+
+/**
+ * Archive an artifact, or bring it back.
+ *
+ * A flag in the manifest, never a deletion. The conversation that produced an
+ * artifact carries a card pointing at it, so removing the files would turn a
+ * settled turn's button into a 404 — a gallery tidy-up must not rewrite
+ * history. Every version stays on disk and every URL keeps working; what
+ * changes is whether the gallery lists it by default.
+ *
+ * @param config - the validated plugin configuration.
+ * @param sessionId - the owning session.
+ * @param artifactId - the artifact.
+ * @param archived - true to archive, false to restore.
+ * @returns the manifest after the write, or undefined when the artifact does not exist.
+ * @throws {ArtifactStoreError} when an id is illegal or the write fails.
+ */
+export async function setArchived(config, sessionId, artifactId, archived) {
+  const meta = await readMeta(config, sessionId, artifactId)
+  if (meta === undefined) return undefined
+  const next = { ...meta }
+  if (archived) next.archivedAt = new Date().toISOString()
+  else delete next.archivedAt
+  const path = join(artifactDir(config, sessionId, artifactId), 'meta.json')
+  try {
+    await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  } catch (error) {
+    throw new ArtifactStoreError(`artifacts: cannot write ${path}: ${error.message}`)
+  }
+  return next
 }
