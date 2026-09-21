@@ -102,7 +102,12 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
         })
         switch (target.kind) {
           case 'ready':
-            return { kind: 'target', host: target.host, port: target.port }
+            return {
+              kind: 'target',
+              host: target.host,
+              port: target.port,
+              ...target.cookie !== undefined && { cookie: target.cookie },
+            }
           case 'at-capacity':
             return {
               kind: 'unavailable',

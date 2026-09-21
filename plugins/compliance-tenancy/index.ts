@@ -38,7 +38,16 @@ export interface TenantRequest {
 
 /** Where a request should be sent, or why it cannot be. */
 export type TenantTarget =
-  | { readonly kind: 'ready'; readonly host: string; readonly port: number }
+  | {
+    readonly kind: 'ready'
+    readonly host: string
+    readonly port: number
+    /**
+     * The backend's own browser-session cookie, which the gateway replays on
+     * every proxied request. Absent when the backend requires none.
+     */
+     readonly cookie?: string
+  }
   | { readonly kind: 'at-capacity'; readonly active: number; readonly max: number }
   | { readonly kind: 'failed'; readonly reason: string }
 
@@ -141,7 +150,12 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
 function describe(acquisition: Acquisition): TenantTarget {
   switch (acquisition.kind) {
     case 'ready':
-      return { kind: 'ready', host: '127.0.0.1', port: acquisition.backend.port }
+      return {
+        kind: 'ready',
+        host: '127.0.0.1',
+        port: acquisition.backend.port,
+        ...acquisition.backend.cookie !== undefined && { cookie: acquisition.backend.cookie },
+      }
     case 'at-capacity':
       return { kind: 'at-capacity', active: acquisition.active, max: acquisition.max }
     case 'failed':
