@@ -39,9 +39,11 @@ window.__ModuleLoader__.load({
 		const react = require("react");
 		const {
 			Button,
+			IconArchiveOutline20,
 			IconCloseOutline16,
 			IconFolderOpenOutline16,
 			IconFullscreenOutline16,
+			IconRefreshOutline16,
 			IconSearchOutline16,
 			IconWarningOutline16,
 		} = require("@deepseek-ai/dsh-client-ui-primitives");
@@ -363,14 +365,19 @@ window.__ModuleLoader__.load({
 		 * Pure, and exported for test: this is the whole search behaviour, and
 		 * driving it through a rendered grid would test React instead.
 		 * @param artifacts - the manifests from the index.
-		 * @param filter - `{ text, from, to }`, each optional.
+		 * @param filter - `{ text, from, to, archived }`, each optional.
 		 * @returns the matching manifests, in the order given.
 		 */
 		function filterArtifacts(artifacts, filter) {
 			const needle = (filter.text ?? "").trim().toLowerCase();
 			const from = filter.from ?? "";
 			const to = filter.to ?? "";
+			const wantArchived = filter.archived === true;
 			return artifacts.filter((meta) => {
+				// Archived is a partition, not a filter: the two views never
+				// overlap, so an archived artifact is out of the default gallery
+				// however the text and dates are set.
+				if ((typeof meta.archivedAt === "string") !== wantArchived) return false;
 				if (needle !== "") {
 					const title = typeof meta.title === "string" ? meta.title.toLowerCase() : "";
 					// The id is searchable too: it is what a link carries, so a person
@@ -417,12 +424,18 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * One card: a live scaled preview, the title, and when it last changed.
-		 * @param props - `{ meta, routePath, onOpen }`.
+		 * One card: a live scaled preview, the title, when it last changed, and
+		 * the control that files it away.
+		 *
+		 * A wrapper with two sibling buttons rather than one button holding
+		 * another: a button inside a button is invalid, and browsers recover
+		 * from it by flattening the markup, which loses one of the two actions.
+		 *
+		 * @param props - `{ meta, routePath, archived, onOpen, onArchive }`.
 		 * @returns the card element.
 		 */
 		function GalleryCard(props) {
-			const { meta, routePath, onOpen } = props;
+			const { meta, routePath, archived, onOpen, onArchive } = props;
 			const frameHost = react.useRef(null);
 			const near = useNearViewport(frameHost);
 			const [width, setWidth] = react.useState(0);
@@ -441,7 +454,7 @@ window.__ModuleLoader__.load({
 
 			const scale = width === 0 ? 0 : width / THUMB_WIDTH;
 
-			return jsxs("button", {
+			const openCard = jsxs("button", {
 				type: "button",
 				onClick: () => { onOpen(meta); },
 				title: `${String(meta.title ?? "Artefato")} · abrir`,
@@ -449,6 +462,7 @@ window.__ModuleLoader__.load({
 					display: "flex",
 					flexDirection: "column",
 					textAlign: "left",
+					width: "100%",
 					padding: 0,
 					border: "1px solid var(--dsw-alias-border-l3)",
 					borderRadius: "12px",
@@ -510,6 +524,34 @@ window.__ModuleLoader__.load({
 					}),
 				],
 			});
+
+			const action = jsx("button", {
+				type: "button",
+				onClick: (event) => { event.stopPropagation(); onArchive(meta, !archived); },
+				title: archived ? "Desarquivar" : "Arquivar",
+				"aria-label": archived ? "Desarquivar" : "Arquivar",
+				style: {
+					position: "absolute",
+					top: "8px",
+					right: "8px",
+					display: "inline-flex",
+					alignItems: "center",
+					justifyContent: "center",
+					width: "28px",
+					height: "28px",
+					padding: 0,
+					border: "1px solid var(--dsw-alias-border-l3)",
+					borderRadius: "8px",
+					// Opaque, not transparent: it sits over the preview, which is
+					// an arbitrary page and may be any colour under it.
+					background: "var(--dsw-alias-bg-layer-1)",
+					color: "var(--dsw-alias-label-secondary)",
+					cursor: "pointer",
+				},
+				children: archived ? jsx(IconRefreshOutline16, {}) : jsx(IconArchiveOutline20, { size: 16 }),
+			});
+
+			return jsxs("div", { style: { position: "relative", minWidth: 0 }, children: [openCard, action] });
 		}
 
 		/**
@@ -522,6 +564,8 @@ window.__ModuleLoader__.load({
 			const [text, setText] = react.useState("");
 			const [from, setFrom] = react.useState("");
 			const [to, setTo] = react.useState("");
+			const [archivedView, setArchivedView] = react.useState(false);
+			const [busy, setBusy] = react.useState(null);
 			const { routePath } = settings();
 
 			// Re-read on every open rather than once: an artifact made in the
@@ -553,9 +597,48 @@ window.__ModuleLoader__.load({
 			}, [open]);
 
 			const shown = react.useMemo(
-				() => filterArtifacts(state.artifacts, { text, from, to }),
-				[state.artifacts, text, from, to],
+				() => filterArtifacts(state.artifacts, { text, from, to, archived: archivedView }),
+				[state.artifacts, text, from, to, archivedView],
 			);
+
+			const archivedCount = react.useMemo(
+				() => state.artifacts.filter(meta => typeof meta.archivedAt === "string").length,
+				[state.artifacts],
+			);
+
+			/**
+			 * File an artifact away, or bring it back.
+			 *
+			 * The list is replaced from the server's answer rather than guessed
+			 * at: the card leaves the current view either way, and a card that
+			 * vanished from a failed write would be a lie about what is on disk.
+			 */
+			const archive = react.useCallback(async (meta, archived) => {
+				const key = `${String(meta.sessionId)}/${String(meta.artifactId)}`;
+				setBusy(key);
+				try {
+					const response = await fetch(`${routePath}/archive`, {
+						method: "POST",
+						credentials: "same-origin",
+						headers: { "content-type": "application/json", accept: "application/json" },
+						body: JSON.stringify({ sessionId: meta.sessionId, artifactId: meta.artifactId, archived }),
+					});
+					if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+					const written = await response.json();
+					setState(current => ({
+						...current,
+						artifacts: current.artifacts.map(entry => (
+							entry.artifactId === written.artifactId && entry.sessionId === written.sessionId
+								? { ...entry, ...written.archivedAt === null ? { archivedAt: undefined } : { archivedAt: written.archivedAt } }
+								: entry
+						)),
+					}));
+				} catch (error) {
+					setState(current => ({ ...current, error: String(error?.message ?? error) }));
+				} finally {
+					setBusy(null);
+				}
+			}, [routePath]);
 
 			const openArtifactFromCard = react.useCallback((meta) => {
 				if (openArtifact === null) return;
@@ -623,7 +706,38 @@ window.__ModuleLoader__.load({
 								borderBottom: "1px solid var(--dsw-alias-border-l3)",
 							},
 							children: [
-								jsx("strong", { style: { fontSize: "15px", marginRight: "auto" }, children: "Meus artefatos" }),
+								jsx("strong", { style: { fontSize: "15px" }, children: "Meus artefatos" }),
+								jsxs("div", {
+									style: {
+										display: "inline-flex",
+										marginRight: "auto",
+										border: "1px solid var(--dsw-alias-border-l3)",
+										borderRadius: "8px",
+										overflow: "hidden",
+									},
+									children: [false, true].map(wantArchived => jsx("button", {
+										type: "button",
+										onClick: () => { setArchivedView(wantArchived); },
+										"aria-pressed": archivedView === wantArchived,
+										style: {
+											padding: "0 12px",
+											height: "30px",
+											border: "none",
+											background: archivedView === wantArchived
+												? "var(--dsw-alias-interactive-bg-hover)"
+												: "transparent",
+											color: archivedView === wantArchived
+												? "var(--dsw-alias-label-primary)"
+												: "var(--dsw-alias-label-tertiary)",
+											font: "inherit",
+											fontSize: "13px",
+											cursor: "pointer",
+										},
+										children: wantArchived
+											? `Arquivados${archivedCount === 0 ? "" : ` (${String(archivedCount)})`}`
+											: "Ativos",
+									}, wantArchived ? "archived" : "active")),
+								}),
 								jsxs("label", {
 									style: { display: "inline-flex", alignItems: "center", gap: "6px" },
 									children: [
@@ -670,10 +784,12 @@ window.__ModuleLoader__.load({
 									? jsx("p", { style: { opacity: 0.7 }, children: "Carregando…" })
 									: shown.length === 0
 										? jsx("p", {
-											style: { opacity: 0.7 },
+											style: { color: "var(--dsw-alias-label-tertiary)" },
 											children: state.artifacts.length === 0
 												? "Você ainda não criou nenhum artefato."
-												: "Nenhum artefato corresponde a esses filtros.",
+												: archivedView && archivedCount === 0
+													? "Nada arquivado. O que você arquivar sai daqui da lista de ativos e continua abrindo pela conversa."
+													: "Nenhum artefato corresponde a esses filtros.",
 										})
 										: jsx("div", {
 											style: {
@@ -681,11 +797,19 @@ window.__ModuleLoader__.load({
 												gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
 												gap: "16px",
 											},
-											children: shown.map((meta) => jsx(GalleryCard, {
-												meta,
-												routePath,
-												onOpen: openArtifactFromCard,
-											}, `${String(meta.sessionId)}/${String(meta.artifactId)}`)),
+											children: shown.map((meta) => {
+												const key = `${String(meta.sessionId)}/${String(meta.artifactId)}`;
+												return jsx("div", {
+													style: { opacity: busy === key ? 0.5 : 1, transition: "opacity 120ms" },
+													children: jsx(GalleryCard, {
+														meta,
+														routePath,
+														archived: archivedView,
+														onOpen: openArtifactFromCard,
+														onArchive: archive,
+													}),
+												}, key);
+											}),
 										}),
 						}),
 					],

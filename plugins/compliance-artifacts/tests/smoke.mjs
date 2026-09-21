@@ -21,7 +21,7 @@ import { join } from 'node:path'
 import { createFakeCtx } from './fake-ctx.mjs'
 import { apply, inject, name } from '../index.js'
 import { resolveConfig, ArtifactsConfigError, contentSecurityPolicy } from '../src/config.js'
-import { writeVersion, readMeta, readVersion, listArtifacts, listAllArtifacts, newArtifactId, ArtifactStoreError } from '../src/store.js'
+import { writeVersion, readMeta, readVersion, listArtifacts, listAllArtifacts, setArchived, newArtifactId, ArtifactStoreError } from '../src/store.js'
 import { applyPatch } from '../src/tool.js'
 import { parseArtifactPath } from '../src/route.js'
 import { artifactsSkill } from '../src/skill.js'
@@ -147,6 +147,23 @@ await check('the gallery listing spans sessions and skips what it cannot read', 
   )
   // Newest first, which is the order the gallery shows without sorting again.
   assert.ok(all[0].updatedAt >= all[1].updatedAt)
+})
+
+await check('archiving is a manifest flag, and every version stays readable', async () => {
+  const archived = await setArchived(config, SESSION, artifactId, true)
+  assert.equal(typeof archived.archivedAt, 'string')
+  // The whole point of a flag over a delete: the files, and therefore every
+  // URL the conversation already handed out, are untouched.
+  assert.ok(await readVersion(config, SESSION, artifactId, 1) !== undefined)
+  assert.ok((await listAllArtifacts(config)).some(meta => meta.artifactId === artifactId))
+
+  // An update must not put it back in the gallery; that is the person's call.
+  await writeVersion(config, SESSION, artifactId, '<p>nova</p>', 'Depois de arquivar')
+  assert.equal(typeof (await readMeta(config, SESSION, artifactId)).archivedAt, 'string')
+
+  const restored = await setArchived(config, SESSION, artifactId, false)
+  assert.equal(restored.archivedAt, undefined)
+  assert.equal(await setArchived(config, SESSION, 'naoexiste', true), undefined)
 })
 
 await check('an empty store lists nothing rather than failing', async () => {
@@ -340,6 +357,62 @@ try {
     assert.equal(JSON.stringify(body).includes('<html'), false)
   })
 
+  await check('the archive route flags one artifact and answers with the new state', async () => {
+    const post = (body, init = {}) => fetch(`${harness.origin}/artifacts/archive`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...init.headers },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+      ...init,
+    })
+
+    const on = await post({ sessionId: SESSION, artifactId: created.artifactId, archived: true })
+    assert.equal(on.status, 200)
+    assert.equal(typeof (await on.json()).archivedAt, 'string')
+    const listed = await (await fetch(`${harness.origin}/artifacts/index`)).json()
+    const entry = listed.artifacts.find(meta => meta.artifactId === created.artifactId)
+    assert.equal(typeof entry.archivedAt, 'string', 'the index still carries it, flagged')
+
+    const off = await post({ sessionId: SESSION, artifactId: created.artifactId, archived: false })
+    assert.equal((await off.json()).archivedAt, null)
+  })
+
+  await check('the archive route carries its own cross-site fence', async () => {
+    const target = { sessionId: SESSION, artifactId: created.artifactId, archived: true }
+    // This route is outside the /api transport's Host/Origin fence, so it has
+    // to refuse a cross-site write itself.
+    const foreign = await fetch(`${harness.origin}/artifacts/archive`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+      body: JSON.stringify(target),
+    })
+    assert.equal(foreign.status, 403)
+
+    // A form POST cannot set a JSON content type, so requiring one keeps it out.
+    const form = await fetch(`${harness.origin}/artifacts/archive`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'sessionId=x',
+    })
+    assert.equal(form.status, 403)
+
+    const stillActive = await readMeta(config, SESSION, created.artifactId)
+    assert.equal(stillActive.archivedAt, undefined, 'a refused request must not have written')
+  })
+
+  await check('the archive route refuses a malformed body, an unknown id and a GET', async () => {
+    const post = body => fetch(`${harness.origin}/artifacts/archive`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body,
+    })
+    assert.equal((await post('{"sessionId":"a"}')).status, 400)
+    assert.equal((await post('nao e json')).status, 400)
+    assert.equal((await post(JSON.stringify({ sessionId: SESSION, artifactId: 'naoexiste', archived: true }))).status, 404)
+    // A traversing id is a 404 like everywhere else here, never a 400.
+    assert.equal((await post(JSON.stringify({ sessionId: '../etc', artifactId: 'x', archived: true }))).status, 404)
+    const read = await fetch(`${harness.origin}/artifacts/archive`)
+    assert.equal(read.status, 405)
+    assert.equal(read.headers.get('allow'), 'POST')
+  })
+
   await check('a write method is refused', async () => {
     const response = await fetch(`${harness.origin}/artifacts/${SESSION}/${created.artifactId}/latest`, { method: 'POST' })
     assert.equal(response.status, 405)
@@ -445,6 +518,21 @@ await check('the gallery filter matches by name, by id and by day', () => {
   assert.deepEqual(filterArtifacts(all, { from: today, to: today }).map(m => m.artifactId), ['aaa'])
   // An unreadable instant is dropped by a date filter rather than crashing it.
   assert.deepEqual(filterArtifacts([made('ccc', 'Sem data', 'nao-e-uma-data')], { from: today }), [])
+})
+
+await check('the gallery splits archived from active rather than filtering it', () => {
+  const { filterArtifacts } = globalThis.__CLIENT_TEST__
+  const now = new Date().toISOString()
+  const all = [
+    { artifactId: 'aaa', sessionId: 's', title: 'Ativo', updatedAt: now },
+    { artifactId: 'bbb', sessionId: 's', title: 'Guardado', updatedAt: now, archivedAt: now },
+  ]
+  assert.deepEqual(filterArtifacts(all, {}).map(m => m.artifactId), ['aaa'])
+  assert.deepEqual(filterArtifacts(all, { archived: true }).map(m => m.artifactId), ['bbb'])
+  // A partition, not a filter: text that matches an archived artifact must not
+  // pull it into the active view.
+  assert.deepEqual(filterArtifacts(all, { text: 'Guardado' }), [])
+  assert.deepEqual(filterArtifacts(all, { text: 'Guardado', archived: true }).map(m => m.artifactId), ['bbb'])
 })
 
 await check('the gallery open state is shared and notifies its subscribers', () => {

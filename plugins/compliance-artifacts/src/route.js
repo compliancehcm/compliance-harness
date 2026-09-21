@@ -15,7 +15,8 @@
  *
  *   GET &lt;routePath&gt;/&lt;sessionId&gt;/&lt;artifactId&gt;/latest   the current version
  *   GET &lt;routePath&gt;/&lt;sessionId&gt;/&lt;artifactId&gt;/v&lt;N&gt;      one immutable version
- *   GET &lt;routePath&gt;/index                                every manifest, as JSON
+ *   GET  &lt;routePath&gt;/index                               every manifest, as JSON
+ *   POST &lt;routePath&gt;/archive                             archive one, or restore it
  *
  * The index cannot collide with a document address even though a session could
  * legally be named `index`: a document address is exactly three segments and
@@ -23,10 +24,65 @@
  *
  * @module
  */
-import { listAllArtifacts, readMeta, readVersion } from './store.js'
+import { listAllArtifacts, readMeta, readVersion, setArchived } from './store.js'
 
 /** Address of the gallery's index, under the configured prefix. */
 export const INDEX_SEGMENT = 'index'
+
+/** Address of the archive action, under the configured prefix. */
+export const ARCHIVE_SEGMENT = 'archive'
+
+/** Cap on the archive request body; it carries two ids and a boolean. */
+const MAX_ARCHIVE_BODY_BYTES = 4096
+
+/**
+ * Whether a state-changing request came from the page this harness serves.
+ *
+ * The document route is a plain `webServer` route, so it sits outside the
+ * `/api` transport's Host/Origin fence and has to carry its own. Two checks,
+ * and both matter: a cross-site form POST always sends `Origin`, and requiring
+ * a JSON content type means anything else needs a preflight the browser will
+ * not get past.
+ *
+ * @param req - the request.
+ * @returns undefined when it may proceed, or the refusal reason.
+ */
+function crossSiteRefusal(req) {
+  const type = req.headers['content-type']
+  if (typeof type !== 'string' || !type.toLowerCase().startsWith('application/json')) {
+    return 'expected content-type: application/json'
+  }
+  const origin = req.headers['origin']
+  if (origin === undefined) return undefined
+  let originHost
+  try {
+    originHost = new URL(origin).host
+  } catch {
+    return 'malformed origin'
+  }
+  return originHost === req.headers['host'] ? undefined : 'cross-site request refused'
+}
+
+/**
+ * Read a bounded JSON request body.
+ * @param req - the request.
+ * @returns the parsed value, or undefined when it is too large or not JSON.
+ */
+async function readJsonBody(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > MAX_ARCHIVE_BODY_BYTES) return undefined
+    chunks.push(chunk)
+  }
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    return parsed !== null && typeof parsed === 'object' ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /** Header set every artifact response carries, whatever its status. */
 function baseHeaders(config) {
@@ -78,13 +134,62 @@ export function artifactHandler(config) {
   return async function handle(req, res) {
     const headers = baseHeaders(config)
 
+    const pathname = new URL(req.url, 'http://artifact.invalid').pathname
+    const archivePath = `${config.routePath}/${ARCHIVE_SEGMENT}`
+
+    if (pathname === archivePath) {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { ...headers, allow: 'POST' })
+        res.end()
+        return
+      }
+      const refusal = crossSiteRefusal(req)
+      if (refusal !== undefined) {
+        res.writeHead(403, { ...headers, 'content-type': 'text/plain; charset=utf-8' })
+        res.end(refusal)
+        return
+      }
+      const body = await readJsonBody(req)
+      if (body === undefined || typeof body.sessionId !== 'string' || typeof body.artifactId !== 'string'
+        || typeof body.archived !== 'boolean') {
+        res.writeHead(400, { ...headers, 'content-type': 'text/plain; charset=utf-8' })
+        res.end('expected { sessionId, artifactId, archived }')
+        return
+      }
+      let meta
+      try {
+        meta = await setArchived(config, body.sessionId, body.artifactId, body.archived)
+      } catch {
+        // An illegal id arrives here as a store error, and is a 404 for the
+        // same reason a document request is: the distinction would tell a
+        // prober which ids are well-formed.
+        meta = undefined
+      }
+      if (meta === undefined) {
+        res.writeHead(404, { ...headers, 'content-type': 'text/plain; charset=utf-8' })
+        res.end('not found')
+        return
+      }
+      const payload = Buffer.from(`${JSON.stringify({
+        sessionId: meta.sessionId,
+        artifactId: meta.artifactId,
+        archivedAt: meta.archivedAt ?? null,
+      })}\n`, 'utf8')
+      res.writeHead(200, {
+        ...headers,
+        'content-type': 'application/json; charset=utf-8',
+        'content-length': String(payload.byteLength),
+        'cache-control': 'private, no-store',
+      })
+      res.end(payload)
+      return
+    }
+
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { ...headers, allow: 'GET, HEAD' })
       res.end()
       return
     }
-
-    const pathname = new URL(req.url, 'http://artifact.invalid').pathname
 
     if (pathname === `${config.routePath}/${INDEX_SEGMENT}`) {
       let body

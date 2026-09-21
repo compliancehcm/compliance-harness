@@ -98,6 +98,24 @@ sets `flex: 1 1 auto; min-width: 0` so that it is the one that yields: this is
 a list seat, an administrator's composition keeps ui-cordis, and that occupant
 is `flex: none; width: 100%` from when it was alone in the row.
 
+### Archiving, and why there is no delete
+
+A gallery needs a way to put something away, and the obvious one is wrong here.
+The conversation that produced an artifact keeps a card pointing at it, so
+deleting the files would turn a settled turn's button into a 404 — a tidy-up of
+the gallery must not rewrite history. `archivedAt` in `meta.json` is the whole
+mechanism: every version stays on disk, every URL keeps working, and what
+changes is which of the gallery's two views lists it.
+
+The flag survives an update, so a new version does not put back what the person
+filed away; unarchiving is their action, not the model's.
+
+`POST <routePath>/archive` carries `{ sessionId, artifactId, archived }`. It is
+the plugin's only write endpoint, and it sits outside the `/api` transport's
+Host/Origin fence — this is a plain `webServer` route — so it carries its own:
+a JSON content type is required (which a cross-origin form cannot set without
+a preflight) and a present `Origin` must match the request's Host.
+
 ### The thumbnails are live documents
 
 There is no screenshot: a card renders the artifact itself in a sandboxed frame
