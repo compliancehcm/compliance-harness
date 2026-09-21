@@ -199,6 +199,14 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
+      {/* Navigation destinations rank with New Session, so they sit under it
+          rather than at the foot: reaching one is going somewhere, not acting
+          on the app around you. Empty in the shipped composition, and the
+          container collapses to nothing when no entry is registered. */}
+      <div className={css.navActions}>
+        {renderSlot('sidebar.nav.action', { wide })}
+      </div>
+
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
       <div className={css.regionArea}>

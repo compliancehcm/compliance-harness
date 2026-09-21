@@ -1,8 +1,9 @@
 # @compliance/dsh-artifacts
 
 Interactive HTML artifacts rendered in a panel beside the conversation:
-`create_artifact` and `update_artifact`, the card that opens the panel, and the
-sandboxed frame that shows the page.
+`create_artifact` and `update_artifact`, the card that opens the panel, the
+sandboxed frame that shows the page, and the gallery of everything this person
+has made.
 
 ## Layout
 
@@ -13,7 +14,7 @@ ignores at any depth.
 | File | Half | Role |
 |---|---|---|
 | `index.js` | node | The row: the two tools, the document route, the skill, the boot global. |
-| `client.js` | browser | The conversation card and the right-Sidebar tab, hand-written in the lazy CJS factory form the client module loader consumes. |
+| `client.js` | browser | The conversation card, the right-Sidebar tab, and the gallery (sidebar entry + overlay), hand-written in the lazy CJS factory form the client module loader consumes. |
 | `src/config.js` | node | Validates the row's `config` and builds the artifact's CSP. |
 | `src/store.js` | node | The versioned directory: `<root>/<sessionId>/<artifactId>/v<N>.html`. |
 | `src/route.js` | node | Serves one document with its own CSP header. |
@@ -68,6 +69,47 @@ is never cropped, and — unlike the arguments — is not model-visible, since
 
 Versions are immutable once written: an update adds a file. A URL the user
 already opened keeps showing what they saw.
+
+## The gallery
+
+An artifact is easy to make and easy to lose: it lives in the turn that produced
+it, so finding last week's dashboard means first remembering which conversation
+made it. `Meus artefatos`, directly under New Session, answers "where did I put
+that" instead — it is keyed by the person's whole store rather than by the open
+session, and filters by name, by artifact id and by a day range.
+
+Two seats, in two different owners, each injected against its own declarer so a
+composition missing either still gets the cards and the panel:
+
+| Slot | Entry |
+|---|---|
+| `sidebar.nav.action` | the sidebar entry that raises the gallery |
+| `shell.overlay` | the gallery surface itself |
+
+`sidebar.nav.action` does not exist upstream. It is added by this deployment in
+`packages/client/ui-sidebar` — the one harness file this plugin needs — because
+the shipped sidebar declares no seat between New Session and the session list,
+and `sidebar.footer.action` is for controls acting on the app rather than for
+places a person goes to.
+
+### The thumbnails are live documents
+
+There is no screenshot: a card renders the artifact itself in a sandboxed frame
+at a 1280×800 logical viewport, scaled by a measured factor to the card's width.
+That keeps every preview exactly as accurate as the panel, with no Chromium in
+the image and no second copy of anything on disk.
+
+The cost is that a visible card is a running page. Two things bound it: a frame
+is mounted only while its card is within a screen's margin of the viewport and
+is dropped again on the way out, and a thumbnail's sandbox is `allow-scripts`
+alone — narrower than the panel's, because a preview nobody clicked on must not
+open a window or a modal. The frame is `pointer-events: none`, so the click
+belongs to the card.
+
+`GET <routePath>/index` serves the manifests and never the pages, so the index
+stays small however many artifacts accumulate. It cannot collide with a document
+address even for a session literally named `index`: a document address is
+exactly three segments and the index is one.
 
 ## Configuration
 

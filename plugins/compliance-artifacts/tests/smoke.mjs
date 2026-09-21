@@ -13,13 +13,13 @@
 // the sandboxed frame actually executes scripts and loads an allowed CDN in a
 // real browser — that is `tests/browser.mjs`.
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createFakeCtx } from './fake-ctx.mjs'
 import { apply, inject, name } from '../index.js'
 import { resolveConfig, ArtifactsConfigError, contentSecurityPolicy } from '../src/config.js'
-import { writeVersion, readMeta, readVersion, listArtifacts, newArtifactId, ArtifactStoreError } from '../src/store.js'
+import { writeVersion, readMeta, readVersion, listArtifacts, listAllArtifacts, newArtifactId, ArtifactStoreError } from '../src/store.js'
 import { applyPatch } from '../src/tool.js'
 import { parseArtifactPath } from '../src/route.js'
 import { artifactsSkill } from '../src/skill.js'
@@ -128,6 +128,27 @@ await check('listing a session returns its artifacts', async () => {
   assert.equal(listed.length, 1)
   assert.equal(listed[0].artifactId, artifactId)
   assert.deepEqual(await listArtifacts(config, 'sessionvazia'), [])
+})
+
+await check('the gallery listing spans sessions and skips what it cannot read', async () => {
+  const other = 'outrasessao'
+  await writeVersion(config, other, 'segundoartefato', '<p>outro</p>', 'De outra conversa')
+  // A directory that is not a legal id, and one with no manifest: the index of
+  // every other artifact must survive both.
+  mkdirSync(join(root, 'nao..legal'), { recursive: true })
+  mkdirSync(join(root, other, 'semmanifesto'), { recursive: true })
+
+  const all = await listAllArtifacts(config)
+  assert.deepEqual(
+    all.map(meta => meta.artifactId).sort(),
+    [artifactId, 'segundoartefato'].sort(),
+  )
+  // Newest first, which is the order the gallery shows without sorting again.
+  assert.ok(all[0].updatedAt >= all[1].updatedAt)
+})
+
+await check('an empty store lists nothing rather than failing', async () => {
+  assert.deepEqual(await listAllArtifacts(resolveConfig({ root: join(root, 'naoexiste') })), [])
 })
 
 // ------------------------------------------------------------------------ patch
@@ -302,6 +323,21 @@ try {
     }
   })
 
+  await check('the index serves every manifest as JSON, and never the pages', async () => {
+    const response = await fetch(`${harness.origin}/artifacts/index`)
+    assert.equal(response.status, 200)
+    assert.match(response.headers.get('content-type') ?? '', /application\/json/)
+    // The gallery must never be served from a cache: an artifact made in the
+    // conversation behind it has to appear the next time it is opened.
+    assert.equal(response.headers.get('cache-control'), 'private, no-store')
+    const body = await response.json()
+    assert.ok(Array.isArray(body.artifacts))
+    assert.ok(body.artifacts.some(meta => meta.artifactId === created.artifactId))
+    // The manifest, not the document: the index stays small however many
+    // artifacts a person has.
+    assert.equal(JSON.stringify(body).includes('<html'), false)
+  })
+
   await check('a write method is refused', async () => {
     const response = await fetch(`${harness.origin}/artifacts/${SESSION}/${created.artifactId}/latest`, { method: 'POST' })
     assert.equal(response.status, 405)
@@ -382,6 +418,45 @@ await check('the pending title tolerates half-streamed arguments', () => {
   for (const block of [undefined, null, 42, {}, { argsRaw: '' }, { kind: 'tool-result', call: null }]) {
     assert.equal(typeof pendingTitle(block), 'string')
   }
+})
+
+await check('the gallery filter matches by name, by id and by day', () => {
+  const { filterArtifacts } = globalThis.__CLIENT_TEST__
+  const made = (id, title, updatedAt) => ({ artifactId: id, sessionId: 's', title, updatedAt, version: 1 })
+  // Local days, written the way the date inputs produce them.
+  const day = (offsetDays) => {
+    const at = new Date()
+    at.setDate(at.getDate() + offsetDays)
+    return at.toISOString()
+  }
+  const all = [made('aaa', 'Dashboard de turnover', day(0)), made('bbb', 'Relatório de férias', day(-10))]
+
+  assert.deepEqual(filterArtifacts(all, { text: 'turnover' }).map(m => m.artifactId), ['aaa'])
+  assert.deepEqual(filterArtifacts(all, { text: 'TURN' }).map(m => m.artifactId), ['aaa'])
+  assert.deepEqual(filterArtifacts(all, { text: 'bbb' }).map(m => m.artifactId), ['bbb'])
+  assert.deepEqual(filterArtifacts(all, { text: 'nada disso' }), [])
+  assert.deepEqual(filterArtifacts(all, {}).length, 2)
+
+  const today = globalThis.__CLIENT_TEST__.localDay(day(0))
+  assert.deepEqual(filterArtifacts(all, { from: today }).map(m => m.artifactId), ['aaa'])
+  assert.deepEqual(filterArtifacts(all, { to: today }).map(m => m.artifactId).sort(), ['aaa', 'bbb'])
+  assert.deepEqual(filterArtifacts(all, { from: today, to: today }).map(m => m.artifactId), ['aaa'])
+  // An unreadable instant is dropped by a date filter rather than crashing it.
+  assert.deepEqual(filterArtifacts([made('ccc', 'Sem data', 'nao-e-uma-data')], { from: today }), [])
+})
+
+await check('the gallery open state is shared and notifies its subscribers', () => {
+  const { gallery } = globalThis.__CLIENT_TEST__
+  const seen = []
+  const stop = gallery.subscribe(() => { seen.push(gallery.snapshot()) })
+  gallery.set(true)
+  // Setting the value it already holds must not wake the subscribers.
+  gallery.set(true)
+  gallery.set(false)
+  stop()
+  gallery.set(true)
+  gallery.set(false)
+  assert.deepEqual(seen, [true, false])
 })
 
 await check('the failure reader tolerates anything the log may hold', () => {

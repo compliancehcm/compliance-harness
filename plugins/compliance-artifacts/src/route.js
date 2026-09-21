@@ -15,10 +15,18 @@
  *
  *   GET &lt;routePath&gt;/&lt;sessionId&gt;/&lt;artifactId&gt;/latest   the current version
  *   GET &lt;routePath&gt;/&lt;sessionId&gt;/&lt;artifactId&gt;/v&lt;N&gt;      one immutable version
+ *   GET &lt;routePath&gt;/index                                every manifest, as JSON
+ *
+ * The index cannot collide with a document address even though a session could
+ * legally be named `index`: a document address is exactly three segments and
+ * the index is one.
  *
  * @module
  */
-import { readMeta, readVersion } from './store.js'
+import { listAllArtifacts, readMeta, readVersion } from './store.js'
+
+/** Address of the gallery's index, under the configured prefix. */
+export const INDEX_SEGMENT = 'index'
 
 /** Header set every artifact response carries, whatever its status. */
 function baseHeaders(config) {
@@ -77,6 +85,31 @@ export function artifactHandler(config) {
     }
 
     const pathname = new URL(req.url, 'http://artifact.invalid').pathname
+
+    if (pathname === `${config.routePath}/${INDEX_SEGMENT}`) {
+      let body
+      try {
+        // The manifests only. The pages themselves are what the gallery's
+        // frames fetch, one per visible card, so the index stays small however
+        // many artifacts a person has accumulated.
+        body = Buffer.from(`${JSON.stringify({ artifacts: await listAllArtifacts(config) })}\n`, 'utf8')
+      } catch {
+        res.writeHead(500, { ...headers, 'content-type': 'text/plain; charset=utf-8' })
+        res.end(req.method === 'HEAD' ? undefined : 'artifact index unavailable')
+        return
+      }
+      res.writeHead(200, {
+        ...headers,
+        'content-type': 'application/json; charset=utf-8',
+        'content-length': String(body.byteLength),
+        // The list changes whenever a tool call lands; a held copy would show
+        // the person a gallery missing what they just made.
+        'cache-control': 'private, no-store',
+      })
+      res.end(req.method === 'HEAD' ? undefined : body)
+      return
+    }
+
     const coordinates = parseArtifactPath(config.routePath, pathname)
     if (coordinates === undefined) {
       res.writeHead(404, { ...headers, 'content-type': 'text/plain; charset=utf-8' })

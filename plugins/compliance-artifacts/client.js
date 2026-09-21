@@ -37,7 +37,14 @@ window.__ModuleLoader__.load({
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		const { jsx, jsxs } = require("react/jsx-runtime");
 		const react = require("react");
-		const { Button, IconFullscreenOutline16, IconWarningOutline16 } = require("@deepseek-ai/dsh-client-ui-primitives");
+		const {
+			Button,
+			IconCloseOutline16,
+			IconFolderOpenOutline16,
+			IconFullscreenOutline16,
+			IconSearchOutline16,
+			IconWarningOutline16,
+		} = require("@deepseek-ai/dsh-client-ui-primitives");
 
 		/** This plugin's tab-type id, and the key of its panel body. */
 		const TAB_ID = "compliance-artifact";
@@ -276,6 +283,445 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		// ── the gallery ───────────────────────────────────────────────────────
+		//
+		// An artifact is easy to make and easy to lose: it lives in the turn that
+		// produced it, so finding last week's dashboard means remembering which
+		// conversation it came from. The gallery is the answer to "where did I put
+		// that", and it is therefore keyed by the person's whole store rather than
+		// by the open session.
+
+		/** Logical viewport a thumbnail renders at before it is scaled down. */
+		const THUMB_WIDTH = 1280;
+
+		/** Logical height of that viewport; the 16:10 crop a dashboard reads well in. */
+		const THUMB_HEIGHT = 800;
+
+		/**
+		 * Open/closed state of the overlay.
+		 *
+		 * Module-level because the trigger and the surface are two separate slot
+		 * entries with no common ancestor to hold a hook: the sidebar renders the
+		 * button, the app frame renders the overlay, and neither owns the other.
+		 */
+		const gallery = {
+			open: false,
+			listeners: new Set(),
+			set(next) {
+				if (gallery.open === next) return;
+				gallery.open = next;
+				for (const listener of gallery.listeners) listener();
+			},
+			subscribe(listener) {
+				gallery.listeners.add(listener);
+				return () => { gallery.listeners.delete(listener); };
+			},
+			snapshot() { return gallery.open; },
+		};
+
+		/**
+		 * Subscribe a component to the overlay's open state.
+		 * @returns whether the gallery is open.
+		 */
+		function useGalleryOpen() {
+			return react.useSyncExternalStore(gallery.subscribe, gallery.snapshot, gallery.snapshot);
+		}
+
+		/**
+		 * The local calendar day of an instant, as `YYYY-MM-DD`.
+		 *
+		 * Local, not UTC: the date inputs a person fills are the days their own
+		 * clock shows, and an artifact made at 21:00 in Brazil is stored with
+		 * tomorrow's UTC date.
+		 * @param iso - an ISO instant, or anything else.
+		 * @returns the day, or null when the value is not a readable instant.
+		 */
+		function localDay(iso) {
+			if (typeof iso !== "string") return null;
+			const at = new Date(iso);
+			if (Number.isNaN(at.getTime())) return null;
+			const month = String(at.getMonth() + 1).padStart(2, "0");
+			const day = String(at.getDate()).padStart(2, "0");
+			return `${String(at.getFullYear())}-${month}-${day}`;
+		}
+
+		/**
+		 * An instant as the person's locale writes it.
+		 * @param iso - an ISO instant.
+		 * @returns a short date and time, or an em dash when unreadable.
+		 */
+		function formatWhen(iso) {
+			if (typeof iso !== "string") return "—";
+			const at = new Date(iso);
+			if (Number.isNaN(at.getTime())) return "—";
+			return at.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+		}
+
+		/**
+		 * Narrow an index by the filter bar's three controls.
+		 *
+		 * Pure, and exported for test: this is the whole search behaviour, and
+		 * driving it through a rendered grid would test React instead.
+		 * @param artifacts - the manifests from the index.
+		 * @param filter - `{ text, from, to }`, each optional.
+		 * @returns the matching manifests, in the order given.
+		 */
+		function filterArtifacts(artifacts, filter) {
+			const needle = (filter.text ?? "").trim().toLowerCase();
+			const from = filter.from ?? "";
+			const to = filter.to ?? "";
+			return artifacts.filter((meta) => {
+				if (needle !== "") {
+					const title = typeof meta.title === "string" ? meta.title.toLowerCase() : "";
+					// The id is searchable too: it is what a link carries, so a person
+					// who has one in hand can paste it here instead of reading titles.
+					const id = typeof meta.artifactId === "string" ? meta.artifactId.toLowerCase() : "";
+					if (!title.includes(needle) && !id.includes(needle)) return false;
+				}
+				if (from === "" && to === "") return true;
+				const day = localDay(meta.updatedAt);
+				if (day === null) return false;
+				if (from !== "" && day < from) return false;
+				if (to !== "" && day > to) return false;
+				return true;
+			});
+		}
+
+		/**
+		 * Whether an element is near enough to the viewport to be worth rendering.
+		 *
+		 * The thumbnails are live documents, not images: every one mounted is a
+		 * real page with its own scripts and its own network. So a card renders
+		 * its frame only while it is on screen (plus a screen's margin), and drops
+		 * it again on the way out — a store of two hundred artifacts costs the
+		 * browser the dozen the person can actually see.
+		 * @param ref - ref to the observed element.
+		 * @returns whether it is in or near the viewport.
+		 */
+		function useNearViewport(ref) {
+			const [near, setNear] = react.useState(false);
+			react.useEffect(() => {
+				const node = ref.current;
+				if (node === null || node === undefined) return undefined;
+				// Without IntersectionObserver every card renders, which is correct
+				// and merely expensive — the wrong direction to fail in is blank.
+				if (typeof IntersectionObserver !== "function") { setNear(true); return undefined; }
+				const observer = new IntersectionObserver(
+					(entries) => { for (const entry of entries) setNear(entry.isIntersecting); },
+					{ rootMargin: "600px 0px" },
+				);
+				observer.observe(node);
+				return () => { observer.disconnect(); };
+			}, [ref]);
+			return near;
+		}
+
+		/**
+		 * One card: a live scaled preview, the title, and when it last changed.
+		 * @param props - `{ meta, routePath, onOpen }`.
+		 * @returns the card element.
+		 */
+		function GalleryCard(props) {
+			const { meta, routePath, onOpen } = props;
+			const frameHost = react.useRef(null);
+			const near = useNearViewport(frameHost);
+			const [width, setWidth] = react.useState(0);
+
+			// The scale is measured rather than assumed: the grid is fluid, so the
+			// factor that makes a 1280px document fit this card is only knowable
+			// once the card has a width.
+			react.useEffect(() => {
+				const node = frameHost.current;
+				if (node === null || typeof ResizeObserver !== "function") return undefined;
+				const observer = new ResizeObserver(() => { setWidth(node.clientWidth); });
+				observer.observe(node);
+				setWidth(node.clientWidth);
+				return () => { observer.disconnect(); };
+			}, []);
+
+			const scale = width === 0 ? 0 : width / THUMB_WIDTH;
+
+			return jsxs("button", {
+				type: "button",
+				onClick: () => { onOpen(meta); },
+				title: `${String(meta.title ?? "Artefato")} · abrir`,
+				style: {
+					display: "flex",
+					flexDirection: "column",
+					textAlign: "left",
+					padding: 0,
+					border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+					borderRadius: "12px",
+					background: "var(--dsw-alias-bg-2, transparent)",
+					color: "inherit",
+					cursor: "pointer",
+					overflow: "hidden",
+				},
+				children: [
+					jsx("div", {
+						ref: frameHost,
+						style: {
+							position: "relative",
+							width: "100%",
+							aspectRatio: `${String(THUMB_WIDTH)} / ${String(THUMB_HEIGHT)}`,
+							overflow: "hidden",
+							background: "var(--dsw-alias-bg-1, #fff)",
+							borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+						},
+						children: near && scale > 0
+							? jsx("iframe", {
+								src: `${routePath}/${String(meta.sessionId)}/${String(meta.artifactId)}/latest?thumb=${String(meta.version ?? 1)}`,
+								title: String(meta.title ?? "Artefato"),
+								tabIndex: -1,
+								"aria-hidden": "true",
+								// Same sandbox as the panel, minus the affordances a
+								// thumbnail must not have: a preview nobody clicked on
+								// should not be able to open a window or a modal.
+								sandbox: "allow-scripts",
+								referrerPolicy: "no-referrer",
+								scrolling: "no",
+								style: {
+									position: "absolute",
+									top: 0,
+									left: 0,
+									width: `${String(THUMB_WIDTH)}px`,
+									height: `${String(THUMB_HEIGHT)}px`,
+									border: "0",
+									transform: `scale(${String(scale)})`,
+									transformOrigin: "0 0",
+									// The card owns the click; the preview is scenery.
+									pointerEvents: "none",
+								},
+							})
+							: null,
+					}),
+					jsxs("div", {
+						style: { display: "flex", flexDirection: "column", gap: "2px", padding: "10px 12px", minWidth: 0 },
+						children: [
+							jsx("span", {
+								style: { fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+								children: String(meta.title ?? "Artefato"),
+							}),
+							jsx("span", {
+								style: { fontSize: "12px", opacity: 0.65 },
+								children: `${formatWhen(meta.updatedAt)} · versão ${String(meta.version ?? 1)}`,
+							}),
+						],
+					}),
+				],
+			});
+		}
+
+		/**
+		 * The gallery surface: filters over every artifact this person has made.
+		 * @returns the overlay element, or null while it is closed.
+		 */
+		function GalleryOverlay() {
+			const open = useGalleryOpen();
+			const [state, setState] = react.useState({ status: "idle", artifacts: [], error: null });
+			const [text, setText] = react.useState("");
+			const [from, setFrom] = react.useState("");
+			const [to, setTo] = react.useState("");
+			const { routePath } = settings();
+
+			// Re-read on every open rather than once: an artifact made in the
+			// conversation behind this overlay must be in the list the next time it
+			// is raised, and there is no event that says so.
+			react.useEffect(() => {
+				if (!open) return undefined;
+				let live = true;
+				setState((current) => ({ ...current, status: "loading" }));
+				fetch(`${routePath}/index`, { headers: { accept: "application/json" }, credentials: "same-origin" })
+					.then((response) => (response.ok ? response.json() : Promise.reject(new Error(`HTTP ${String(response.status)}`))))
+					.then((body) => {
+						if (!live) return;
+						const artifacts = Array.isArray(body?.artifacts) ? body.artifacts : [];
+						setState({ status: "ready", artifacts, error: null });
+					})
+					.catch((error) => {
+						if (!live) return;
+						setState({ status: "error", artifacts: [], error: String(error?.message ?? error) });
+					});
+				return () => { live = false; };
+			}, [open, routePath]);
+
+			react.useEffect(() => {
+				if (!open) return undefined;
+				const onKey = (event) => { if (event.key === "Escape") gallery.set(false); };
+				window.addEventListener("keydown", onKey);
+				return () => { window.removeEventListener("keydown", onKey); };
+			}, [open]);
+
+			const shown = react.useMemo(
+				() => filterArtifacts(state.artifacts, { text, from, to }),
+				[state.artifacts, text, from, to],
+			);
+
+			const openArtifactFromCard = react.useCallback((meta) => {
+				if (openArtifact === null) return;
+				titles.set(String(meta.artifactId), String(meta.title ?? "Artefato"));
+				gallery.set(false);
+				openArtifact(addressOf(String(meta.sessionId), String(meta.artifactId)));
+			}, []);
+
+			if (!open) return null;
+
+			const field = {
+				height: "32px",
+				padding: "0 10px",
+				borderRadius: "8px",
+				border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+				background: "var(--dsw-alias-bg-1, #fff)",
+				color: "inherit",
+				fontSize: "13px",
+			};
+
+			return jsx("div", {
+				// The overlay layer is click-through by contract; this entry opts
+				// back in, which is also what makes the backdrop dismissable.
+				style: {
+					position: "absolute",
+					inset: 0,
+					pointerEvents: "auto",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					background: "rgba(0,0,0,0.45)",
+					padding: "24px",
+					zIndex: 40,
+				},
+				onClick: () => { gallery.set(false); },
+				children: jsxs("div", {
+					role: "dialog",
+					"aria-label": "Meus artefatos",
+					onClick: (event) => { event.stopPropagation(); },
+					style: {
+						display: "flex",
+						flexDirection: "column",
+						width: "min(1180px, 100%)",
+						height: "min(820px, 100%)",
+						borderRadius: "14px",
+						border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+						background: "var(--dsw-alias-bg-1, #fff)",
+						color: "var(--dsw-alias-label-primary, inherit)",
+						overflow: "hidden",
+					},
+					children: [
+						jsxs("div", {
+							style: {
+								display: "flex",
+								alignItems: "center",
+								gap: "12px",
+								flexWrap: "wrap",
+								padding: "14px 16px",
+								borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+							},
+							children: [
+								jsx("strong", { style: { fontSize: "15px", marginRight: "auto" }, children: "Meus artefatos" }),
+								jsxs("label", {
+									style: { display: "inline-flex", alignItems: "center", gap: "6px" },
+									children: [
+										jsx(IconSearchOutline16, {}),
+										jsx("input", {
+											type: "search",
+											value: text,
+											placeholder: "Nome ou id",
+											onChange: (event) => { setText(event.target.value); },
+											style: { ...field, width: "200px" },
+										}),
+									],
+								}),
+								jsxs("label", {
+									style: { display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", opacity: 0.8 },
+									children: ["De", jsx("input", {
+										type: "date",
+										value: from,
+										onChange: (event) => { setFrom(event.target.value); },
+										style: field,
+									})],
+								}),
+								jsxs("label", {
+									style: { display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", opacity: 0.8 },
+									children: ["Até", jsx("input", {
+										type: "date",
+										value: to,
+										onChange: (event) => { setTo(event.target.value); },
+										style: field,
+									})],
+								}),
+								jsx(Button, {
+									size: "small",
+									onClick: () => { gallery.set(false); },
+									children: jsx(IconCloseOutline16, {}),
+								}),
+							],
+						}),
+						jsx("div", {
+							style: { flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "16px" },
+							children: state.status === "error"
+								? jsx("p", { style: { opacity: 0.7 }, children: `Não foi possível carregar seus artefatos: ${String(state.error)}` })
+								: state.status === "loading" && state.artifacts.length === 0
+									? jsx("p", { style: { opacity: 0.7 }, children: "Carregando…" })
+									: shown.length === 0
+										? jsx("p", {
+											style: { opacity: 0.7 },
+											children: state.artifacts.length === 0
+												? "Você ainda não criou nenhum artefato."
+												: "Nenhum artefato corresponde a esses filtros.",
+										})
+										: jsx("div", {
+											style: {
+												display: "grid",
+												gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+												gap: "16px",
+											},
+											children: shown.map((meta) => jsx(GalleryCard, {
+												meta,
+												routePath,
+												onOpen: openArtifactFromCard,
+											}, `${String(meta.sessionId)}/${String(meta.artifactId)}`)),
+										}),
+						}),
+					],
+				}),
+			});
+		}
+
+		/**
+		 * The sidebar entry that raises the gallery.
+		 * @param props - the nav-action owner props; `wide` is the column state.
+		 * @returns the button element.
+		 */
+		function GalleryNavAction(props) {
+			const wide = props.wide === true;
+			return jsxs("button", {
+				type: "button",
+				onClick: () => { gallery.set(true); },
+				"aria-label": "Meus artefatos",
+				title: "Meus artefatos",
+				style: {
+					display: "flex",
+					alignItems: "center",
+					justifyContent: wide ? "flex-start" : "center",
+					gap: "6px",
+					width: wide ? "100%" : "36px",
+					height: wide ? "34px" : "36px",
+					padding: wide ? "0 10px" : "0",
+					border: "0",
+					borderRadius: wide ? "10px" : "8px",
+					background: "transparent",
+					color: "var(--dsw-alias-label-primary, inherit)",
+					font: "inherit",
+					fontSize: "14px",
+					cursor: "pointer",
+				},
+				children: [
+					jsx(IconFolderOpenOutline16, { size: wide ? 14 : 18 }),
+					wide ? jsx("span", { style: { overflow: "hidden", whiteSpace: "nowrap" }, children: "Meus artefatos" }) : null,
+				],
+			});
+		}
+
 		// ── registration ──────────────────────────────────────────────────────
 
 		/** Required services: the UI slot registry. The Sidebar pair is read optionally. */
@@ -318,11 +764,34 @@ window.__ModuleLoader__.load({
 				yield ctx.slots.register({ name: "tool.call.toolview", key: createToolName }, ArtifactToolView);
 				yield ctx.slots.register({ name: "tool.call.toolview", key: updateToolName }, ArtifactToolView);
 			});
+
+			// The gallery is two seats in two different owners — the sidebar holds
+			// the entry, the app frame holds the surface — so each is injected
+			// against its own declarer rather than assumed present. A composition
+			// with neither still gets the cards and the panel.
+			ctx.slots.inject("sidebar.nav.action", function* () {
+				yield ctx.slots.register(
+					{ name: "sidebar.nav.action", id: "compliance-artifacts-gallery", order: 10, label: "Meus artefatos" },
+					GalleryNavAction,
+				);
+			});
+
+			ctx.slots.inject("shell.overlay", function* () {
+				yield ctx.slots.register(
+					{ name: "shell.overlay", id: "compliance-artifacts-gallery", order: 40, label: "Meus artefatos" },
+					GalleryOverlay,
+				);
+			});
+
+			// Nothing can open an artifact without the right Sidebar, and a gallery
+			// whose cards do nothing is worse than no gallery: close it rather than
+			// leave it raised over an app that cannot answer.
+			ctx.effect(() => () => { gallery.set(false); }, "artifacts: gallery state");
 		}
 
 		exports.apply = apply;
 		exports.inject = inject;
-		exports.__test__ = { parseAddress, addressOf, receiptOf, pendingTitle, failureOf, TAB_ID };
+		exports.__test__ = { parseAddress, addressOf, receiptOf, pendingTitle, failureOf, filterArtifacts, localDay, gallery, TAB_ID };
 		return module.exports;
 	}
 });
