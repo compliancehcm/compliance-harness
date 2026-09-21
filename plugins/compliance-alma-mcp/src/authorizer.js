@@ -46,8 +46,21 @@ export function createAuthorizer(ctx, config, onGrantLost = async () => {}) {
   }
 
   /**
-   * The client identity to authorize as: the pinned one, the registered one, or
-   * a fresh dynamic registration persisted for next time.
+   * The client identity to authorize as: the pinned one, a stored registration
+   * that has proven itself, or a fresh dynamic registration persisted for next
+   * time.
+   *
+   * A stored registration is reused only while tokens hang off it. An id with
+   * no tokens is a registration that never completed a grant — or one whose
+   * grant was dropped because the server rejected its refresh — and ALMA's
+   * registry does not keep dynamic clients forever. Reusing such an id sends
+   * the human to an authorization endpoint that answers `client ID ... was not
+   * found in the server's client registry`, which is a page THIS plugin never
+   * sees: the browser never comes back, so nothing here can notice and
+   * recover. The trap has no exit either, because the status page offers
+   * Disconnect only while connected. So the stale id is discarded on the way
+   * in, at the one moment a fresh registration costs nothing but one POST.
+   *
    * @param metadata - the authorization server's metadata.
    * @returns `{ clientId, clientSecret? }`.
    */
@@ -63,7 +76,13 @@ export function createAuthorizer(ctx, config, onGrantLost = async () => {}) {
       return { clientId: config.clientId, clientSecret: resolved.value }
     }
     const stored = await readGrant(ctx)
-    if (stored !== undefined && typeof stored.clientId === 'string' && stored.clientId !== '') {
+    const holds = (field) => stored !== undefined && typeof stored[field] === 'string' && stored[field] !== ''
+    // `provenAt` outlives the tokens on purpose (`forgetTokens` keeps it), so a
+    // grant ALMA revoked still reuses its registration — the server rejected
+    // the grant, not the client. Tokens alone also count, for a record written
+    // before this field existed.
+    const proven = typeof stored?.provenAt === 'number' || holds('refreshToken') || holds('accessToken')
+    if (proven && holds('clientId')) {
       return {
         clientId: stored.clientId,
         ...typeof stored.clientSecret === 'string' && { clientSecret: stored.clientSecret },
@@ -94,7 +113,11 @@ export function createAuthorizer(ctx, config, onGrantLost = async () => {}) {
       scopes: config.scopes,
       resource,
     })
-    attempts.set(started.state, { verifier: started.verifier, returnTo, startedAt: Date.now() })
+    // The identity travels with the attempt rather than being resolved again in
+    // the callback: with the rule above, a second resolution during the same
+    // login would register a SECOND client and exchange the code under an id
+    // that never authorized it.
+    attempts.set(started.state, { verifier: started.verifier, returnTo, identity, startedAt: Date.now() })
     return started.url
   }
 
@@ -115,7 +138,7 @@ export function createAuthorizer(ctx, config, onGrantLost = async () => {}) {
     }
     attempts.delete(params.state)
     const { metadata, resource } = await discovered()
-    const identity = await clientIdentity(metadata)
+    const identity = attempt.identity
     const tokens = await exchangeCode(metadata, {
       ...identity,
       code: params.code,
@@ -129,6 +152,9 @@ export function createAuthorizer(ctx, config, onGrantLost = async () => {}) {
       ...identity.clientSecret !== undefined && { clientSecret: identity.clientSecret },
       ...tokens,
       connectedAt: Date.now(),
+      // The registration has now been honoured by the authorization server at
+      // least once, which is what makes it worth keeping past a sign-out.
+      provenAt: Date.now(),
     }))
     lastError = undefined
     ctx.logger.info('alma-mcp: connected to ALMA at %s', config.mcpUrl)
