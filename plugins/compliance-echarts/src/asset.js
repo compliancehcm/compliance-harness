@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 
-/** The vendored bundle; see vendor/README.md for its provenance. */
+/** The vendored bundle; vendor/README.md names its release and hash. */
 const BUNDLE_PATH = fileURLToPath(new URL('../vendor/echarts.min.js', import.meta.url))
 
 /**

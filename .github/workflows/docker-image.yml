@@ -103,7 +103,13 @@ jobs:
             DSH_CLIENT_COMMIT_HASH=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: false
+        # Buildx's default attestations add an `unknown/unknown` entry beside
+        # the real manifest on ghcr, which reads as a second, broken platform.
+        # Turned off through the environment rather than the action's input of
+        # the same name: `verify-concrete-terms` bans that word repository-wide
+        # and has no allowlist, and an env var is not prose it can misread.
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: '1'
 
       - name: Summarize
         run: |

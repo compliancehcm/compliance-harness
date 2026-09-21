@@ -104,7 +104,8 @@ export interface ClaimSource {
  * deployment to add a protocol mapper before the gate works.
  *
  * Searching both is sound because both tokens arrive in the same token-endpoint
- * response, over the same TLS channel, from the same issuer — provenance, not
+ * response, over the same TLS channel, from the same issuer — which endpoint
+ * answered, not
  * location, is what makes a claim trustworthy here. Identity still comes from
  * the id_token alone; only the authorization claim is searched more widely.
  *

@@ -175,7 +175,7 @@ function withBackendCookie(inbound: string | string[] | undefined, cookie: strin
   return [...kept, cookie].join('; ')
 }
 
-/** Copy inbound headers for forwarding, normalizing provenance. */
+/** Copy inbound headers for forwarding, normalizing Host and Origin. */
 function forwardHeaders(
   headers: IncomingHttpHeaders,
   targetAuthority: string,
