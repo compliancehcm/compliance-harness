@@ -172,9 +172,9 @@ window.__ModuleLoader__.load({
 			alignItems: "center",
 			gap: "12px",
 			padding: "12px 14px",
-			border: "1px solid var(--dsw-alias-border-2, rgba(127,127,127,0.28))",
+			border: "1px solid var(--dsw-alias-border-l3)",
 			borderRadius: "10px",
-			background: "var(--dsw-alias-bg-2, transparent)",
+			background: "var(--dsw-alias-bg-layer-2)",
 		};
 
 		/**
@@ -195,7 +195,7 @@ window.__ModuleLoader__.load({
 
 			if (failure !== null) {
 				return jsxs("div", {
-					style: { ...CARD_STYLE, color: "var(--dsw-alias-text-error, #d33)" },
+					style: { ...CARD_STYLE, color: "var(--dsw-alias-state-error-primary)" },
 					children: [
 						jsx(IconWarningOutline16, {}),
 						jsx("span", { children: failure }),
@@ -278,7 +278,7 @@ window.__ModuleLoader__.load({
 					width: "100%",
 					height: "100%",
 					border: "0",
-					background: "var(--dsw-alias-bg-1, #fff)",
+					background: "var(--dsw-alias-bg-layer-1)",
 				},
 			});
 		}
@@ -450,9 +450,9 @@ window.__ModuleLoader__.load({
 					flexDirection: "column",
 					textAlign: "left",
 					padding: 0,
-					border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+					border: "1px solid var(--dsw-alias-border-l3)",
 					borderRadius: "12px",
-					background: "var(--dsw-alias-bg-2, transparent)",
+					background: "var(--dsw-alias-bg-layer-2)",
 					color: "inherit",
 					cursor: "pointer",
 					overflow: "hidden",
@@ -465,8 +465,8 @@ window.__ModuleLoader__.load({
 							width: "100%",
 							aspectRatio: `${String(THUMB_WIDTH)} / ${String(THUMB_HEIGHT)}`,
 							overflow: "hidden",
-							background: "var(--dsw-alias-bg-1, #fff)",
-							borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+							background: "var(--dsw-alias-bg-layer-1)",
+							borderBottom: "1px solid var(--dsw-alias-border-l3)",
 						},
 						children: near && scale > 0
 							? jsx("iframe", {
@@ -503,7 +503,7 @@ window.__ModuleLoader__.load({
 								children: String(meta.title ?? "Artefato"),
 							}),
 							jsx("span", {
-								style: { fontSize: "12px", opacity: 0.65 },
+								style: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary)" },
 								children: `${formatWhen(meta.updatedAt)} · versão ${String(meta.version ?? 1)}`,
 							}),
 						],
@@ -570,8 +570,11 @@ window.__ModuleLoader__.load({
 				height: "32px",
 				padding: "0 10px",
 				borderRadius: "8px",
-				border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
-				background: "var(--dsw-alias-bg-1, #fff)",
+				border: "1px solid var(--dsw-alias-border-l3)",
+				// layer-2 sits one step above the panel's layer-1 in dark mode;
+				// in light mode the two are the same colour and the border is
+				// what separates them, which is why it is not optional.
+				background: "var(--dsw-alias-bg-layer-2)",
 				color: "inherit",
 				fontSize: "13px",
 			};
@@ -580,13 +583,16 @@ window.__ModuleLoader__.load({
 				// The overlay layer is click-through by contract; this entry opts
 				// back in, which is also what makes the backdrop dismissable.
 				style: {
-					position: "absolute",
+					// Fixed, not absolute: the overlay layer is itself positioned,
+					// so `absolute` anchors to ITS box — which left the sidebar
+					// undimmed and the panel off-centre. Fixed is the window.
+					position: "fixed",
 					inset: 0,
 					pointerEvents: "auto",
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "center",
-					background: "rgba(0,0,0,0.45)",
+					background: "var(--dsw-alias-bg-mask-1)",
 					padding: "24px",
 					zIndex: 40,
 				},
@@ -601,9 +607,9 @@ window.__ModuleLoader__.load({
 						width: "min(1180px, 100%)",
 						height: "min(820px, 100%)",
 						borderRadius: "14px",
-						border: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
-						background: "var(--dsw-alias-bg-1, #fff)",
-						color: "var(--dsw-alias-label-primary, inherit)",
+						border: "1px solid var(--dsw-alias-border-l3)",
+						background: "var(--dsw-alias-bg-layer-1)",
+						color: "var(--dsw-alias-label-primary)",
 						overflow: "hidden",
 					},
 					children: [
@@ -614,7 +620,7 @@ window.__ModuleLoader__.load({
 								gap: "12px",
 								flexWrap: "wrap",
 								padding: "14px 16px",
-								borderBottom: "1px solid var(--dsw-alias-border-l3, rgba(127,127,127,0.28))",
+								borderBottom: "1px solid var(--dsw-alias-border-l3)",
 							},
 							children: [
 								jsx("strong", { style: { fontSize: "15px", marginRight: "auto" }, children: "Meus artefatos" }),
@@ -688,11 +694,24 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * The sidebar entry that raises the gallery.
-		 * @param props - the nav-action owner props; `wide` is the column state.
+		 * The sidebar entry that raises the gallery, at the column's foot.
+		 *
+		 * Geometry copied from the seat's existing occupant (ui-cordis: 42px
+		 * tall, 12px radius, transparent until hover, 36px square on the rail)
+		 * rather than invented, because the two sit in the same row and a
+		 * neighbour half a pixel off reads as a bug in both.
+		 *
+		 * `flex` is the part that is not cosmetic. This is a list seat, so the
+		 * row can hold more than one action — under this deployment it does,
+		 * for an administrator, whose composition keeps ui-cordis. That
+		 * occupant is `flex: none; width: 100%`, written when it was the only
+		 * one, so something has to yield or the row overflows. This entry is
+		 * what yields.
+		 *
+		 * @param props - the footer-action owner props; `wide` is the column state.
 		 * @returns the button element.
 		 */
-		function GalleryNavAction(props) {
+		function GalleryFooterAction(props) {
 			const wide = props.wide === true;
 			return jsxs("button", {
 				type: "button",
@@ -700,24 +719,32 @@ window.__ModuleLoader__.load({
 				"aria-label": "Meus artefatos",
 				title: "Meus artefatos",
 				style: {
-					display: "flex",
+					display: "inline-flex",
 					alignItems: "center",
 					justifyContent: wide ? "flex-start" : "center",
-					gap: "6px",
-					width: wide ? "100%" : "36px",
-					height: wide ? "34px" : "36px",
-					padding: wide ? "0 10px" : "0",
-					border: "0",
-					borderRadius: wide ? "10px" : "8px",
+					gap: wide ? "8px" : "0",
+					flex: wide ? "1 1 auto" : "none",
+					minWidth: 0,
+					width: wide ? "auto" : "36px",
+					height: wide ? "42px" : "36px",
+					padding: wide ? "0 10px 0 8px" : "0",
+					border: "none",
+					borderRadius: wide ? "12px" : "8px",
 					background: "transparent",
-					color: "var(--dsw-alias-label-primary, inherit)",
-					font: "inherit",
+					color: "var(--dsw-alias-label-primary)",
+					fontFamily: "inherit",
 					fontSize: "14px",
 					cursor: "pointer",
+					overflow: "hidden",
 				},
 				children: [
-					jsx(IconFolderOpenOutline16, { size: wide ? 14 : 18 }),
-					wide ? jsx("span", { style: { overflow: "hidden", whiteSpace: "nowrap" }, children: "Meus artefatos" }) : null,
+					jsx(IconFolderOpenOutline16, { size: wide ? 16 : 18 }),
+					wide
+						? jsx("span", {
+							style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+							children: "Meus artefatos",
+						})
+						: null,
 				],
 			});
 		}
@@ -769,10 +796,17 @@ window.__ModuleLoader__.load({
 			// the entry, the app frame holds the surface — so each is injected
 			// against its own declarer rather than assumed present. A composition
 			// with neither still gets the cards and the panel.
-			ctx.slots.inject("sidebar.nav.action", function* () {
+			//
+			// `sidebar.footer.action` and not a seat under New Session: the
+			// shipped sidebar declares nothing there, and adding one means
+			// editing `packages/client/ui-sidebar`, which every upstream sync
+			// would then have to reconcile. This deployment's layer is additive
+			// by rule, so the entry goes where a seat already exists. `order`
+			// puts it after the occupant that seat already has.
+			ctx.slots.inject("sidebar.footer.action", function* () {
 				yield ctx.slots.register(
-					{ name: "sidebar.nav.action", id: "compliance-artifacts-gallery", order: 10, label: "Meus artefatos" },
-					GalleryNavAction,
+					{ name: "sidebar.footer.action", id: "compliance-artifacts-gallery", order: 10, label: "Meus artefatos" },
+					GalleryFooterAction,
 				);
 			});
 
