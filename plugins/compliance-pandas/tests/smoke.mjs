@@ -9,7 +9,9 @@
 //
 //   node plugins/compliance-pandas/tests/smoke.mjs
 //
-// It needs no build, no network and no API key. The end-to-end checks self-skip
+// It needs the harness built (`pnpm run build`), because the fake tool registry
+// runs the REAL schema validator out of `@deepseek-ai/dsh-tools` rather than a
+// stand-in. It needs no network and no API key. The end-to-end checks self-skip
 // when python3 or pandas is missing, so the file still reports on a bare host.
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'

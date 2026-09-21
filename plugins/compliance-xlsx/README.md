@@ -77,7 +77,10 @@ installs them; outside Docker they are the host's to provide.
 node plugins/compliance-xlsx/tests/smoke.mjs
 ```
 
-No build, no network, no API key. The end-to-end checks **reopen** each written
+Needs the harness built (`pnpm run build`): the fake tool registry runs the real
+schema validator out of `@deepseek-ai/dsh-tools` rather than a stand-in, so a
+schema the harness would refuse fails here instead of at a user's boot. No
+network, no API key. The end-to-end checks **reopen** each written
 workbook and inspect sheet names, number formats, the totals formula, frozen
 panes, the autofilter and the chart. Asserting only that a file exists would pass
 for a workbook with every format wrong, which is the failure this plugin exists
