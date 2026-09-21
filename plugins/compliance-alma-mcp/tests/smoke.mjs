@@ -24,10 +24,17 @@ const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, 
 
 // The MCP SDK is a dependency of the CLI, not of this package — resolved the
 // same way src/mcp.js resolves the client itself.
-const cliRequire = createRequire(`${REPO_ROOT}/apps/cli/package.json`)
-const { Client } = await import(pathToFileURL(cliRequire.resolve('@modelcontextprotocol/sdk/client/index.js')).href)
+// From the package that DECLARES the SDK, not from `apps/cli`. apps/cli depends
+// on `@deepseek-ai/dsh-mcp-client` — which is what the plugin resolves at
+// runtime through `resolveMcpClientFrom` — but not on the SDK underneath it,
+// and pnpm's strict layout does not hoist an undeclared dependency into reach.
+// Resolving it from there worked only on a machine that happened to have the
+// SDK in an ancestor `node_modules`; on a clean checkout it is `Cannot find
+// module '@modelcontextprotocol/sdk/client/index.js'`.
+const sdkRequire = createRequire(`${REPO_ROOT}/packages/mcp/mcp-client/package.json`)
+const { Client } = await import(pathToFileURL(sdkRequire.resolve('@modelcontextprotocol/sdk/client/index.js')).href)
 const { StreamableHTTPClientTransport } = await import(
-  pathToFileURL(cliRequire.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href)
+  pathToFileURL(sdkRequire.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href)
 
 const results = []
 const check = (label, fn) => { try { fn(); results.push(['PASS', label]) } catch (error) { results.push(['FAIL', `${label}: ${error.message}`]) } }
