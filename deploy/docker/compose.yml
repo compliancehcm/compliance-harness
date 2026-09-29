@@ -1,0 +1,39 @@
+# One Compliance AI host: the image, the run flags it cannot start without, and
+# the one volume that holds user data.
+#
+#   cp deploy/docker/compliance-ai.env.example deploy/docker/compliance-ai.env
+#   # fill it in, then:
+#   COMPLIANCE_AI_IMAGE=ghcr.io/compliancehcm/compliance-harness/compliance-ai@sha256:<digest> \
+#     docker compose -f deploy/docker/compose.yml up -d
+#
+# Pin the image by digest (the Docker image workflow prints it in its summary):
+# a tag like `latest` moves, and a restart would then run code nobody deployed.
+#
+# The port is published on loopback only. SSO_PUBLIC_URL is an https origin in
+# any real deployment, so a TLS-terminating proxy on this host (Caddy, nginx, a
+# cloud load balancer's agent) forwards to 127.0.0.1:3080; the gate itself
+# speaks plain HTTP. Set COMPLIANCE_AI_BIND=0.0.0.0 only on a private network.
+#
+# One service, one replica: the backend pool is process-local (see README,
+# "Known limitations"). Scale the host up, not the service out.
+name: compliance-ai
+
+services:
+  compliance-ai:
+    image: ${COMPLIANCE_AI_IMAGE:?set COMPLIANCE_AI_IMAGE to the image reference, pinned by digest}
+    restart: unless-stopped
+    # Tenancy probes bubblewrap at boot and refuses to serve without it; these
+    # two are the narrow grant Docker's default profile withholds.
+    cap_add: [SYS_ADMIN]
+    security_opt: [apparmor=unconfined]
+    ports:
+      - ${COMPLIANCE_AI_BIND:-127.0.0.1}:3080:3080
+    env_file: compliance-ai.env
+    volumes:
+      - compliance-ai-users:/var/lib/compliance-ai/users
+    # Backends are child processes of the gateway; give them time to flush
+    # session logs before the engine kills the whole tree.
+    stop_grace_period: 30s
+
+volumes:
+  compliance-ai-users:

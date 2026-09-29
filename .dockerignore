@@ -24,6 +24,8 @@ worktrees
 .cache
 .claude
 .env
+# A filled-in deployment environment holds secrets; `COPY . .` would bake it in.
+deploy/docker/*.env
 tmp
 .storages
 .sessions

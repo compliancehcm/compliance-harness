@@ -1,0 +1,76 @@
+name: Helm chart
+
+# Lint and schema-check deploy/helm/compliance-ai on every change to it. Cheap
+# on purpose — no cluster, no image — so a chart-only pull request does not pay
+# for the image build. Publishing is not here: it runs in docker-image.yml
+# after the image, because the published chart is pinned to that image's digest.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'deploy/helm/**'
+      - '.github/workflows/helm-chart.yml'
+  pull_request:
+    paths:
+      - 'deploy/helm/**'
+      - '.github/workflows/helm-chart.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHART: deploy/helm/compliance-ai
+  KUBECONFORM_VERSION: v0.6.7
+
+jobs:
+  lint:
+    name: lint and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.4
+
+      - name: Install kubeconform
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+
+      - name: Lint
+        run: |
+          for values in "$CHART"/ci/*-values.yaml; do
+            helm lint --strict "$CHART" -f "$values"
+          done
+
+      # Both sides of the AppArmor switch: the beta annotation below 1.30, the
+      # securityContext field from 1.30 on.
+      - name: Validate rendered manifests
+        run: |
+          for values in "$CHART"/ci/*-values.yaml; do
+            for kube in 1.29.0 1.31.0; do
+              echo "::group::$(basename "$values") on $kube"
+              helm template ci "$CHART" -f "$values" --kube-version "$kube" \
+                | kubeconform -strict -summary -kubernetes-version "$kube"
+              echo "::endgroup::"
+            done
+          done
+
+      # The required values must stop an install with a message, not render.
+      - name: Refuse an install without an issuer
+        run: |
+          if out=$(helm template ci "$CHART" 2>&1); then
+            echo "rendered without sso.issuer"; exit 1
+          fi
+          grep -q 'sso.issuer is required' <<<"$out"

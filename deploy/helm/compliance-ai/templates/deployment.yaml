@@ -1,0 +1,138 @@
+{{- $appArmor := include "compliance-ai.appArmorField" . }}
+{{- $secretName := include "compliance-ai.secretName" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "compliance-ai.fullname" . }}
+  labels:
+    {{- include "compliance-ai.labels" . | nindent 4 }}
+spec:
+  # Not a value: the backend pool, its ports and idle timers are process-local,
+  # so a second replica is a second, disjoint deployment behind one Service.
+  replicas: 1
+  # Recreate, not RollingUpdate: the users volume is ReadWriteOnce, and two
+  # gateways over one users root would each spawn backends on the same trees.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "compliance-ai.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "compliance-ai.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # The configuration is read once, by the entrypoint; a change needs a restart.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if and (not .Values.secrets.existingSecret) .Values.secrets.values }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if eq $appArmor "annotation" }}
+        container.apparmor.security.beta.kubernetes.io/compliance-ai: unconfined
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "compliance-ai.fullname" . }}
+      automountServiceAccountToken: false
+      # Service links inject <SERVICE>_PORT-style variables, and the image reads
+      # COMPLIANCE_* and SSO_* ones: a Service named `compliance` or `sso` in the
+      # namespace would collide with them.
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: compliance-ai
+          image: {{ include "compliance-ai.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "compliance-ai.fullname" . }}
+            {{- if $secretName }}
+            - secretRef:
+                name: {{ $secretName }}
+            {{- end }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Runs as root with SYS_ADMIN: bubblewrap needs both to build each
+          # user's sandbox. See values.yaml `confinement`.
+          securityContext:
+            {{- with .Values.confinement.capabilities }}
+            capabilities:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- if eq $appArmor "field" }}
+            appArmorProfile:
+              type: Unconfined
+            {{- end }}
+            {{- with .Values.confinement.seccompProfile }}
+            seccompProfile:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          # /auth/status is answered by the SSO gate without a session and
+          # without contacting the identity provider, and only once the whole
+          # plugin tree has loaded — the same check as the image HEALTHCHECK.
+          startupProbe:
+            httpGet:
+              path: /auth/status
+              port: http
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /auth/status
+              port: http
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /auth/status
+              port: http
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: users
+              mountPath: /var/lib/compliance-ai/users
+      volumes:
+        - name: users
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-users" (include "compliance-ai.fullname" .)) }}
+          {{- else }}
+          # Every user's data is lost on each restart.
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

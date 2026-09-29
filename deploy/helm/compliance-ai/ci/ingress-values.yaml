@@ -1,0 +1,16 @@
+# Values `helm lint` and the CI template check render with. The chart has no
+# usable defaults for the issuer and client on purpose, so this file supplies
+# them; it is excluded from the packaged chart by .helmignore.
+sso:
+  issuer: https://sso.example.com/realms/Example
+  clientId: compliance-ai-harness
+ingress:
+  enabled: true
+  className: nginx
+  host: ai.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+secrets:
+  existingSecret: compliance-ai-secrets
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

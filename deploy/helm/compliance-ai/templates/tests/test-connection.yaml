@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "compliance-ai.fullname" . }}-test
+  labels:
+    {{- include "compliance-ai.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    # Through the Service, so the check covers the selector and the port
+    # mapping as well as the gate: an anonymous status call must answer.
+    - name: gate-status
+      image: busybox:1.37
+      command:
+        - sh
+        - -c
+        - wget -qO- http://{{ include "compliance-ai.fullname" . }}:{{ .Values.service.port }}/auth/status | grep -q '"authenticated":false'
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault
