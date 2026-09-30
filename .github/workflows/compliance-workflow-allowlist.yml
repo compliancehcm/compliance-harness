@@ -1,0 +1,49 @@
+name: Compliance workflow allowlist
+
+# Keep only this fork's own workflows enabled; see
+# .github/compliance/workflows.allowlist for the list and the reasons.
+#
+# Triggered by pushes to master that touch workflows, because that is how an
+# upstream sync brings a new one in — enabled by default. The sync's own pull
+# request still runs a newly added upstream workflow once; nothing in a
+# workflow file can prevent that, since GitHub reads it from the PR ref.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+      - '.github/compliance/**'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only report what would change
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  enforce:
+    name: enforce allowlist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          # The enforcer checks each allowlisted path exists in the tree.
+          sparse-checkout: .github
+
+      - name: Enforce
+        run: .github/compliance/enforce-workflow-allowlist.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}

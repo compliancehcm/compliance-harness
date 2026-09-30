@@ -27,7 +27,10 @@ three had been added.
 |---|---|
 | `Dockerfile` | Two stages: install + `pnpm run build` + link the plugin packages into the `web` profile; then a runtime stage with bubblewrap |
 | `entrypoint.sh` | Renders the loader overlays from the environment, then starts the gateway |
-| `../../.github/workflows/docker-image.yml` | Builds and publishes to `ghcr.io/<owner>/<repo>/compliance-ai` |
+| `healthcheck.sh` | The image `HEALTHCHECK`: healthy once the gate answers `/auth/status` |
+| `smoke.sh` | Boots a built image in both compositions and checks the gate; CI runs it before publishing |
+| `compose.yml` + `compliance-ai.env.example` | One host's deployment: the run flags, the volume, the environment |
+| `../../.github/workflows/docker-image.yml` | Builds, boots, and only then publishes to `ghcr.io/<owner>/<repo>/compliance-ai`; then publishes the Helm chart pinned to that digest |
 
 ## What is inside, and why it is large
 
@@ -59,7 +62,69 @@ docker build -f deploy/docker/Dockerfile \
 `DSH_CLIENT_COMMIT_HASH` is required because `.dockerignore` excludes `.git`,
 and the client build stamps the commit into its artifacts.
 
+## Pipeline
+
+`docker-image.yml` runs on every push to `master`, `feat/compliance-**` and
+`v*` tags, and on pull requests touching `deploy/docker/**` or `plugins/**`:
+
+1. **Build** into the runner's engine as `compliance-ai:smoke`.
+2. **Boot smoke** — `smoke.sh` starts that image twice, against a fictitious
+   issuer (the gate discovers its issuer lazily, so nothing is contacted):
+   - *tenancy*, the shipped shape: the gateway composition loads and bubblewrap
+     works under the documented run flags;
+   - *shared*, `COMPLIANCE_TENANCY=off`: every other plugin applies in the
+     gateway itself, because under tenancy they load only in a per-user backend
+     that a real login spawns.
+
+   Each boot must answer `/auth/status` anonymously, redirect a navigation to
+   `/auth/login` and refuse an API call with 401. The `HEALTHCHECK` command is
+   run against the first.
+3. **Publish** — the same build, a cache hit, pushed with the branch, tag and
+   `sha-<commit>` tags, plus `latest` on `master`. Pull requests stop after the
+   smoke.
+
+The job exposes `image` and `digest` as outputs, and the run summary prints
+`<image>@sha256:…`. That pinned reference is what a deploy consumes.
+
+4. **Chart** — on `master` and `v*` tags only, the `chart` job packages
+   `deploy/helm/compliance-ai` with that digest written into its values and
+   pushes it to `oci://ghcr.io/<owner>/<repo>/charts/compliance-ai`.
+
+Run the smoke locally against any build:
+
+```sh
+deploy/docker/smoke.sh compliance-ai
+```
+
+## Deploy
+
+The confinement privilege below rules out hosts that cannot grant
+`SYS_ADMIN` to a container — serverless container platforms generally cannot —
+and the process-local backend pool rules out running more than one replica. The
+supported targets are therefore **one Kubernetes pod** — the Helm chart in
+[`deploy/helm/compliance-ai`](../helm/compliance-ai/README.md), published by the
+same workflow and pinned to the image it booted — or **one VM with a Docker
+engine**, behind a TLS-terminating proxy:
+
+```sh
+cp deploy/docker/compliance-ai.env.example deploy/docker/compliance-ai.env
+# fill in SSO_PUBLIC_URL, the secrets and OPENROUTER_API_KEY, then:
+COMPLIANCE_AI_IMAGE=ghcr.io/compliancehcm/compliance-harness/compliance-ai@sha256:<digest> \
+  docker compose -f deploy/docker/compose.yml up -d
+```
+
+`compose.yml` publishes the port on loopback, so the proxy on the same host
+forwards `https://<public origin>` to `127.0.0.1:3080`. The filled-in
+`compliance-ai.env` is ignored by Git and by the build context. Rolling back is
+the same command with the previous digest; user data lives in the
+`compliance-ai-users` volume and survives it.
+
+If the ghcr package is private, the host needs `docker login ghcr.io` with a
+token holding `read:packages` before the first pull.
+
 ## Run
+
+Without compose, the same thing by hand:
 
 ```sh
 docker run -d --name compliance-ai \
@@ -144,7 +209,7 @@ together.
 
 `compliance-pandas` and `compliance-xlsx` need a python3 with pandas and
 openpyxl, which the runtime stage installs — see the Dockerfile's own note on
-why they come from apt rather than pip, and why the builder stage's python3
+why they come from pip rather than apt, and why the builder stage's python3
 cannot stand in for them. Neither plugin has an environment knob: the
 interpreter name and the workbook theme are their whole configuration, and both
 are committed in the overlays.
@@ -214,5 +279,7 @@ mirroring.
 - **The provider credential is readable inside a backend.** Unchanged from the
   host deployment; see `plugins/compliance-tenancy/README.md` for the threat
   model.
-- **No health check.** A `HEALTHCHECK` would have to pick an endpoint the gate
-  answers before login; not yet chosen.
+- **The health check sees the gateway, not the backends.** `/auth/status` is
+  answered by the gate, so a user whose backend fails to spawn does not turn the
+  container unhealthy — that failure is shown to the user as a waiting or error
+  page instead.

@@ -1,0 +1,24 @@
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "compliance-ai.fullname" . }}-users
+  labels:
+    {{- include "compliance-ai.labels" . | nindent 4 }}
+  annotations:
+    # Every user's workspace and sessions live here; `helm uninstall` must not
+    # take them with it. Delete the claim by hand when that is the intent.
+    helm.sh/resource-policy: keep
+    {{- with .Values.persistence.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

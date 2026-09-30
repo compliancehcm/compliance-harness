@@ -1,0 +1,31 @@
+# GitHub Actions workflows this fork runs. Every other workflow is disabled.
+#
+# The upstream workflows stay in the tree, unedited, so an upstream sync merges
+# without touching them; they are switched off in the repository's Actions
+# state instead, by .github/compliance/enforce-workflow-allowlist.sh. That
+# state is keyed by workflow path and survives syncs. A workflow a sync ADDS is
+# enabled by default, which is why the enforcer runs on every push to master
+# that touches .github/workflows/.
+#
+# Why the upstream lanes are off here, not merely noisy:
+#  - ci.yml / ci-master.yml queue jobs on upstream self-hosted runners
+#    (dsh-win-ci, vm-backup) that do not exist in this organization; each such
+#    job waits 24 hours for its timeout.
+#  - e2e.yml, sandbox.yml, pi-ai-provider-e2e.yml need upstream API keys.
+#  - release*.yml, python-release.yml, node-addon-system-release.yml and
+#    build-exe-for-python-sdk.yml publish the upstream npm/PyPI packages.
+#  - issue-*.yml, weighted-approval*.yml and build-preview-cloudflare.yml
+#    operate the upstream's GitHub App, project board and Cloudflare account.
+#
+# What still guards the harness itself after a sync: compliance-plugins.yml
+# runs `pnpm run build` and the plugin smokes, and docker-image.yml builds the
+# image and boots it.
+#
+# One path per line, relative to the repository root. The enforcer refuses to
+# run if a listed path does not exist in the tree, so a typo or a rename fails
+# loudly instead of silently leaving a lane off.
+
+.github/workflows/compliance-plugins.yml
+.github/workflows/docker-image.yml
+.github/workflows/helm-chart.yml
+.github/workflows/compliance-workflow-allowlist.yml

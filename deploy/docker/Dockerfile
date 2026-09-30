@@ -96,9 +96,11 @@ RUN apt-get update \
 
 COPY --from=builder /app /app
 COPY --from=builder /opt/compliance-ai/gateway-home /opt/compliance-ai/gateway-home
-# --chmod: the script is tracked as 100644, and core.fileMode=false checkouts
-# (WSL, Windows) would never carry an executable bit through anyway.
+# --chmod rather than trusting the checkout: COPY keeps the context's file mode,
+# and a script committed or checked out without its execute bit makes the
+# ENTRYPOINT fail with `permission denied` on a build that still reports green.
 COPY --chmod=0755 deploy/docker/entrypoint.sh /usr/local/bin/compliance-entrypoint
+COPY --chmod=0755 deploy/docker/healthcheck.sh /usr/local/bin/compliance-healthcheck
 
 WORKDIR /app
 
@@ -131,5 +133,11 @@ ENV CI=true \
 VOLUME ["/var/lib/compliance-ai/users"]
 
 EXPOSE 3080
+
+# The start period covers the tsx source launch of the gateway, which compiles
+# the plugin layer on first import; it is generous because a restart loop on a
+# slow host is worse than a late "healthy".
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD ["/usr/local/bin/compliance-healthcheck"]
 
 ENTRYPOINT ["/usr/local/bin/compliance-entrypoint"]

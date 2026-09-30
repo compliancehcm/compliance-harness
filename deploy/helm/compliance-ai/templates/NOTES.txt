@@ -1,0 +1,34 @@
+Compliance AI is starting as {{ include "compliance-ai.image" . }}.
+
+Public origin: {{ include "compliance-ai.publicUrl" . }}
+Register this redirect URI on the OIDC client "{{ .Values.sso.clientId }}", exactly:
+  {{ include "compliance-ai.publicUrl" . }}/auth/callback
+
+Watch the boot (the first start compiles the plugin layer; allow a few minutes):
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "compliance-ai.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "compliance-ai.fullname" . }} -f
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }}
+{{- if not .Values.ingress.enabled }}
+
+No ingress. To reach it from here:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "compliance-ai.fullname" . }} 3080:{{ .Values.service.port }}
+{{- end }}
+{{- if and .Values.tenancy.enabled (eq .Values.tenancy.confinement "bwrap") }}
+
+The pod needs SYS_ADMIN and unconfined AppArmor for bubblewrap. If it stays
+Pending with a Pod Security error, label the namespace:
+  kubectl label namespace {{ .Release.Namespace }} pod-security.kubernetes.io/enforce=privileged --overwrite
+{{- end }}
+{{- if not (include "compliance-ai.secretName" .) }}
+
+WARNING: no Secret is configured, so OPENROUTER_API_KEY is unset and the
+composed default model cannot answer. Set secrets.existingSecret.
+{{- end }}
+{{- if not .Values.persistence.enabled }}
+
+WARNING: persistence is disabled; every user's data is lost on each restart.
+{{- end }}
+{{- if .Values.persistence.enabled }}
+
+The users volume is kept on `helm uninstall` (helm.sh/resource-policy: keep).
+{{- end }}

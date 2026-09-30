@@ -7,6 +7,11 @@ name: Docker image
 # The image installs and builds from source inside the builder stage (the
 # gateway runs the tsx source launch, the per-user backends run the built CLI),
 # so this is a long job by design rather than a thin packaging step.
+#
+# Nothing is published that has not booted: the image is built into the local
+# engine first, `deploy/docker/smoke.sh` starts it in both compositions, and only
+# then is the same build (a cache hit) pushed. The job's `image` and `digest`
+# outputs are the handle a deploy job consumes; deploy by digest, never by tag.
 
 on:
   push:
@@ -20,8 +25,11 @@ on:
       - 'website/**'
       - '**/*.md'
   pull_request:
+    # `plugins/**` because a plugin that throws at apply builds fine and only
+    # fails the boot smoke; catching that before merge is the point of it.
     paths:
       - 'deploy/docker/**'
+      - 'plugins/**'
       - '.github/workflows/docker-image.yml'
       - '.dockerignore'
   workflow_dispatch:
@@ -49,6 +57,9 @@ jobs:
     name: build and publish
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -87,15 +98,18 @@ jobs:
             org.opencontainers.image.title=Compliance AI harness
             org.opencontainers.image.description=dsh web UI with this deployment's compliance plugin layer composed (see deploy/docker/README.md)
 
-      - name: Build and publish
-        id: build
+      # Loaded into the runner's engine under a local tag, so the smoke runs the
+      # exact image the next step publishes.
+      - name: Build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/docker/Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
-          load: false
-          tags: ${{ steps.meta.outputs.tags }}
+          push: false
+          load: true
+          tags: compliance-ai:smoke
+          # Labels are image config, so they must match the publish step's or
+          # the pushed image would not be the one that booted.
           labels: ${{ steps.meta.outputs.labels }}
           # The client build stamps the commit into its artifacts and would
           # otherwise read it from git, which the build context excludes.
@@ -111,16 +125,112 @@ jobs:
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: '1'
 
+      - name: Boot smoke
+        run: deploy/docker/smoke.sh compliance-ai:smoke
+
+      # Every layer is in the cache from the build above, so this re-run only
+      # assembles and uploads the manifest; `digest` is what a deploy pins.
+      - name: Publish
+        id: build
+        if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DSH_CLIENT_COMMIT_HASH=${{ github.sha }}
+          cache-from: type=gha
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: '1'
+
       - name: Summarize
+        if: steps.build.outcome == 'success'
         run: |
           {
             echo '### Compliance AI image'
             echo
-            echo "digest: \`${{ steps.build.outputs.digest }}\`"
+            echo 'Deploy by digest:'
+            echo '```'
+            echo "${{ steps.image.outputs.ref }}@${{ steps.build.outputs.digest }}"
+            echo '```'
             echo
             echo 'tags:'
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
-            echo 'Run it with the flags in `deploy/docker/README.md` — bubblewrap needs a kernel privilege the default container profile withholds.'
+            echo 'Run it with `deploy/docker/compose.yml`, or with the flags in `deploy/docker/README.md` — bubblewrap needs a kernel privilege the default container profile withholds.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The Helm chart, pinned to the digest the job above just published and
+  # smoke-tested. Only from master and from `v*` tags: a feature branch image is
+  # not something a cluster should be able to pull through a released chart.
+  #
+  # Versions: a `v1.2.3` tag publishes chart 1.2.3 over image tag v1.2.3;
+  # master publishes `<Chart.yaml version>-master.<run number>` over
+  # `sha-<commit>`, a prerelease that `helm install` only picks with `--devel`
+  # or an explicit `--version`.
+  chart:
+    name: publish helm chart
+    needs: image
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+      && needs.image.outputs.digest != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.4
+
+      - name: Resolve versions
+        id: version
+        run: |
+          base=$(sed -n 's/^version: *//p' deploy/helm/compliance-ai/Chart.yaml)
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            version=${GITHUB_REF_NAME#v}
+            app_version=$GITHUB_REF_NAME
+          else
+            version="$base-master.$GITHUB_RUN_NUMBER"
+            app_version="sha-$GITHUB_SHA"
+          fi
+          {
+            echo "version=$version"
+            echo "app_version=$app_version"
+            echo "registry=oci://ghcr.io/${GITHUB_REPOSITORY,,}/charts"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: >-
+          deploy/helm/package.sh
+          "${{ steps.version.outputs.version }}"
+          "${{ steps.version.outputs.app_version }}"
+          "${{ needs.image.outputs.digest }}"
+          dist
+
+      - name: Push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin <<<"$GH_TOKEN"
+          helm push dist/compliance-ai-*.tgz "${{ steps.version.outputs.registry }}"
+
+      - name: Summarize
+        run: |
+          {
+            echo '### Helm chart'
+            echo
+            echo "chart \`compliance-ai\` ${{ steps.version.outputs.version }} → image \`${{ needs.image.outputs.image }}@${{ needs.image.outputs.digest }}\`"
+            echo
+            echo '```'
+            echo "helm upgrade --install compliance-ai ${{ steps.version.outputs.registry }}/compliance-ai \\"
+            echo "  --version ${{ steps.version.outputs.version }} -n compliance-ai --create-namespace -f my-values.yaml"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

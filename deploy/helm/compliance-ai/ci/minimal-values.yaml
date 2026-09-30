@@ -1,0 +1,15 @@
+# The smallest valid install: no ingress, a chart-managed Secret, no persistence.
+sso:
+  issuer: https://sso.example.com/realms/Example
+  clientId: compliance-ai-harness
+  publicUrl: http://127.0.0.1:3080
+  requireRoles: ""
+secrets:
+  values:
+    OPENROUTER_API_KEY: placeholder
+persistence:
+  enabled: false
+tenancy:
+  enabled: false
+alma:
+  enabled: false

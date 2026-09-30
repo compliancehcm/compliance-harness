@@ -1,0 +1,167 @@
+# Values for the Compliance AI harness. Every environment variable the image
+# reads is documented in deploy/docker/README.md ("Environment"); the keys below
+# map onto those one to one.
+
+image:
+  repository: ghcr.io/compliancehcm/compliance-harness/compliance-ai
+  # Defaults to the chart's appVersion, which CI sets to the image tag it
+  # published and smoke-tested in the same run.
+  tag: ""
+  # Pins the image by digest and wins over `tag`. The published chart fills
+  # this in; set it to roll back to a specific build.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Needed when the ghcr package is private: a docker-registry Secret holding a
+# token with `read:packages`.
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ── identity provider ─────────────────────────────────────────────────────────
+sso:
+  # Required. OIDC issuer; discovery hangs off /.well-known/openid-configuration.
+  issuer: ""
+  # Required. OAuth client id registered on that issuer.
+  clientId: ""
+  # The origin browsers use. Defaults to https://<ingress.host> when the ingress
+  # is enabled. `<publicUrl>/auth/callback` must be registered as a redirect URI
+  # on the client, exactly.
+  publicUrl: ""
+  scopes: openid profile email
+  # Empty means `resource_access.<clientId>.roles`.
+  requireClaimPath: ""
+  # Any one admits. An EMPTY string admits every authenticated user.
+  requireRoles: dsh-access
+  adminClaimPath: ""
+  # Any one grants the configuration plane. Empty means nobody is an administrator.
+  adminRoles: dsh-admin
+  sessionTtlMinutes: 480
+  idleTimeoutMinutes: 60
+
+# ── per-user backends ─────────────────────────────────────────────────────────
+tenancy:
+  # false runs one shared harness with the gate in front: no per-user isolation.
+  enabled: true
+  # bwrap | none. `none` makes every user's agent able to read every other
+  # user's files; it exists for single-user demos.
+  confinement: bwrap
+  # A backend is a Node process of a few hundred megabytes; size
+  # `resources.limits.memory` to this times ~500Mi, plus the gateway.
+  maxBackends: 12
+  idleReapMinutes: 15
+  portRangeStart: 31000
+  portRangeEnd: 31200
+  # Names of environment variables handed into each backend. The values come
+  # from the Secret below; only the names appear here.
+  forwardCredentials: DEEPSEEK_API_KEY OPENROUTER_API_KEY
+
+# ── ALMA (Compliance HCM) over MCP ────────────────────────────────────────────
+alma:
+  enabled: true
+  mcpUrl: https://mcp.compliancehcm.com.br/mcp
+  serverName: alma
+  scopes: openid profile
+  refreshSkewSeconds: 120
+  toolCallTimeoutMs: 300000
+  # Pins one pre-registered OAuth client; empty means each workspace registers
+  # itself dynamically. Its secret goes in the Secret as ALMA_CLIENT_SECRET.
+  clientId: ""
+
+# ── secrets ───────────────────────────────────────────────────────────────────
+# Every key of the Secret becomes an environment variable of the same name.
+# The keys the image reads: SSO_CLIENT_SECRET (empty or absent = public PKCE
+# client), OPENROUTER_API_KEY, DEEPSEEK_API_KEY, ALMA_CLIENT_SECRET.
+secrets:
+  # Name of a Secret you manage (kubectl, External Secrets, Sealed Secrets…).
+  # When set, `values` below is ignored and the chart creates no Secret.
+  existingSecret: ""
+  # Only for trying the chart out: values given here land in the Helm release
+  # record in plain text.
+  values: {}
+
+# Extra environment for the container, in Kubernetes `env` form.
+extraEnv: []
+
+# ── storage ───────────────────────────────────────────────────────────────────
+# Every user's workspace, sessions, settings and credentials. This is the only
+# state the deployment has.
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+  annotations: {}
+
+# ── network ───────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  # The gate streams over SSE and two WebSockets, so a proxy's default 60s read
+  # timeout cuts live conversations. For ingress-nginx:
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+  annotations: {}
+  host: ""
+  tls:
+    enabled: true
+    # Secret holding the certificate; cert-manager can create it from an
+    # annotation on this Ingress.
+    secretName: ""
+
+# ── confinement ───────────────────────────────────────────────────────────────
+# Tenancy wraps every backend in bubblewrap and probes it at boot: without these
+# the pod exits with "unprivileged user namespaces are probably unavailable on
+# this host" rather than serving users unconfined. They also require the
+# namespace's Pod Security level to be `privileged` (see NOTES / README).
+confinement:
+  capabilities:
+    add:
+      - SYS_ADMIN
+  # Unconfined AppArmor. `field` uses securityContext.appArmorProfile
+  # (Kubernetes 1.30+); `annotation` uses the older beta annotation; `auto`
+  # picks by the cluster version.
+  appArmor: auto
+  # Left to the node default when empty. RuntimeDefault permits the namespace
+  # calls bubblewrap makes once SYS_ADMIN is granted.
+  seccompProfile: {}
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    memory: 8Gi
+
+# Boot is the tsx source launch of the gateway; five minutes before the kubelet
+# gives up on it.
+startupProbe:
+  periodSeconds: 10
+  failureThreshold: 30
+livenessProbe:
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Backends flush their session logs on SIGTERM.
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
