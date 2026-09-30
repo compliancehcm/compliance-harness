@@ -96,7 +96,9 @@ RUN apt-get update \
 
 COPY --from=builder /app /app
 COPY --from=builder /opt/compliance-ai/gateway-home /opt/compliance-ai/gateway-home
-COPY deploy/docker/entrypoint.sh /usr/local/bin/compliance-entrypoint
+# --chmod: the script is tracked as 100644, and core.fileMode=false checkouts
+# (WSL, Windows) would never carry an executable bit through anyway.
+COPY --chmod=0755 deploy/docker/entrypoint.sh /usr/local/bin/compliance-entrypoint
 
 WORKDIR /app
 
