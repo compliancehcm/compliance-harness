@@ -1,0 +1,19 @@
+apiVersion: v2
+name: compliance-ai
+description: Compliance AI harness — the dsh web UI behind the SSO gate, one confined backend per user
+type: application
+# Bumped by hand when the chart's own templates or values change. The published
+# chart carries a CI-computed version on master (<version>-master.<run>) and the
+# tag's version on a `v*` tag; see .github/workflows/docker-image.yml.
+version: 0.1.0
+# Replaced at package time by the image tag the same run published, so a chart
+# always points at an image that passed the boot smoke.
+appVersion: latest
+kubeVersion: '>=1.27.0-0'
+home: https://github.com/compliancehcm/compliance-harness
+sources:
+  - https://github.com/compliancehcm/compliance-harness/tree/master/deploy
+keywords:
+  - compliance
+  - dsh
+  - ai

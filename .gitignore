@@ -50,3 +50,7 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/system/test/bin/
+
+# Filled-in deployment environment (deploy/docker/compose.yml); the committed
+# template is compliance-ai.env.example.
+deploy/docker/*.env

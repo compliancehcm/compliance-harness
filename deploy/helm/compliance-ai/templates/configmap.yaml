@@ -1,0 +1,44 @@
+{{- if not (has .Values.tenancy.confinement (list "bwrap" "none")) }}
+{{- fail (printf "tenancy.confinement must be bwrap or none; got %q" .Values.tenancy.confinement) }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "compliance-ai.fullname" . }}
+  labels:
+    {{- include "compliance-ai.labels" . | nindent 4 }}
+data:
+  # Read by deploy/docker/entrypoint.sh, which renders the loader overlays from
+  # them at start; the names are the image's, documented in its README.
+  SSO_ISSUER: {{ required "sso.issuer is required" .Values.sso.issuer | quote }}
+  SSO_CLIENT_ID: {{ required "sso.clientId is required" .Values.sso.clientId | quote }}
+  SSO_PUBLIC_URL: {{ include "compliance-ai.publicUrl" . | quote }}
+  SSO_SCOPES: {{ .Values.sso.scopes | quote }}
+  {{- with .Values.sso.requireClaimPath }}
+  SSO_REQUIRE_CLAIM_PATH: {{ . | quote }}
+  {{- end }}
+  # Always set, even when empty: an empty value is the image's spelling for
+  # "admit every authenticated user" / "nobody is an administrator".
+  SSO_REQUIRE_ROLES: {{ .Values.sso.requireRoles | quote }}
+  {{- with .Values.sso.adminClaimPath }}
+  SSO_ADMIN_CLAIM_PATH: {{ . | quote }}
+  {{- end }}
+  SSO_ADMIN_ROLES: {{ .Values.sso.adminRoles | quote }}
+  SSO_SESSION_TTL_MINUTES: {{ .Values.sso.sessionTtlMinutes | quote }}
+  SSO_IDLE_TIMEOUT_MINUTES: {{ .Values.sso.idleTimeoutMinutes | quote }}
+  COMPLIANCE_TENANCY: {{ ternary "on" "off" .Values.tenancy.enabled | quote }}
+  COMPLIANCE_CONFINEMENT: {{ .Values.tenancy.confinement | quote }}
+  COMPLIANCE_MAX_BACKENDS: {{ .Values.tenancy.maxBackends | quote }}
+  COMPLIANCE_IDLE_REAP_MINUTES: {{ .Values.tenancy.idleReapMinutes | quote }}
+  COMPLIANCE_PORT_RANGE_START: {{ .Values.tenancy.portRangeStart | quote }}
+  COMPLIANCE_PORT_RANGE_END: {{ .Values.tenancy.portRangeEnd | quote }}
+  COMPLIANCE_FORWARD_CREDENTIALS: {{ .Values.tenancy.forwardCredentials | quote }}
+  ALMA_ENABLED: {{ ternary "on" "off" .Values.alma.enabled | quote }}
+  ALMA_MCP_URL: {{ .Values.alma.mcpUrl | quote }}
+  ALMA_SERVER_NAME: {{ .Values.alma.serverName | quote }}
+  ALMA_SCOPES: {{ .Values.alma.scopes | quote }}
+  ALMA_REFRESH_SKEW_SECONDS: {{ .Values.alma.refreshSkewSeconds | quote }}
+  ALMA_TOOL_CALL_TIMEOUT_MS: {{ .Values.alma.toolCallTimeoutMs | quote }}
+  {{- with .Values.alma.clientId }}
+  ALMA_CLIENT_ID: {{ . | quote }}
+  {{- end }}

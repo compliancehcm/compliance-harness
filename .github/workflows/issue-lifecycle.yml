@@ -33,17 +33,7 @@ concurrency:
 jobs:
   lifecycle:
     name: Issue lifecycle
-    # Upstream only, for the same reason as the Issue policy lane: this one
-    # MUTATES the `DSH Issue Management` Project board named in config.json, and
-    # both the board and the App token belong to deepseek-harness. A fork has
-    # neither, so the job fails at token creation on every event.
-    #
-    # Upstream's own event filter is kept beside that gate rather than replaced
-    # by it: the two answer different questions — whether this repository owns
-    # the board at all, and whether this particular event has anything to do.
-    # The token-creating and board-mutating steps stay gated at step level too.
     if: >-
-      github.repository == 'deepseek-harness/deepseek-harness' &&
       (github.event_name != 'pull_request_review' || github.event.review.state == 'changes_requested') &&
       (github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.body != null)
     runs-on: ubuntu-latest
