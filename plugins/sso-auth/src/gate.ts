@@ -223,7 +223,7 @@ export class SsoGate implements ProxyGate {
     } catch (error) {
       this.deps.logger.warn(`sso-auth: login could not start: ${String(error)}`)
       sendHtml(res, 502, errorPage(
-        'The identity provider could not be reached.',
+        'Não foi possível contatar o provedor de identidade.',
         error instanceof OidcError ? error.message : undefined,
       ))
     }
@@ -235,7 +235,7 @@ export class SsoGate implements ProxyGate {
     const providerError = target.searchParams.get('error')
     if (providerError !== null) {
       sendHtml(res, 400, errorPage(
-        'The identity provider refused the sign-in.',
+        'O provedor de identidade recusou o login.',
         `${providerError}: ${target.searchParams.get('error_description') ?? 'no description given'}`,
       ))
       return true
@@ -245,7 +245,7 @@ export class SsoGate implements ProxyGate {
     if (pending === undefined || code === null) {
       // An unknown state is a replayed, expired, or forged callback. All three
       // are indistinguishable from here and none may open a session.
-      sendHtml(res, 400, errorPage('This sign-in link is no longer valid. Start again.'))
+      sendHtml(res, 400, errorPage('Este link de login não é mais válido. Comece de novo.'))
       return true
     }
 
@@ -258,31 +258,31 @@ export class SsoGate implements ProxyGate {
     } catch (error) {
       this.deps.logger.warn(`sso-auth: code exchange failed: ${String(error)}`)
       sendHtml(res, 502, errorPage(
-        'The sign-in could not be completed.',
+        'Não foi possível concluir o login.',
         error instanceof OidcError ? error.message : undefined,
       ))
       return true
     }
 
     if (tokens.idToken === undefined) {
-      sendHtml(res, 502, errorPage('The provider returned no id_token, so the user cannot be identified.'))
+      sendHtml(res, 502, errorPage('O provedor não devolveu um id_token, então não é possível identificar o usuário.'))
       return true
     }
     const claims = decodeClaims(tokens.idToken)
     if (claims === undefined) {
-      sendHtml(res, 502, errorPage('The provider returned an unreadable id_token.'))
+      sendHtml(res, 502, errorPage('O provedor devolveu um id_token ilegível.'))
       return true
     }
     const claimedNonce = claims['nonce']
     if (typeof claimedNonce !== 'string' || !safeEqual(claimedNonce, pending.nonce)) {
       // The nonce binds this token to this browser's login attempt; without the
       // check, a token obtained elsewhere could be replayed into this callback.
-      sendHtml(res, 400, errorPage('The sign-in response did not match this attempt. Start again.'))
+      sendHtml(res, 400, errorPage('A resposta do login não corresponde a esta tentativa. Comece de novo.'))
       return true
     }
     const principal = toPrincipal(claims)
     if (principal === undefined) {
-      sendHtml(res, 502, errorPage('The id_token carries no subject, so the user cannot be identified.'))
+      sendHtml(res, 502, errorPage('O id_token não traz um subject, então não é possível identificar o usuário.'))
       return true
     }
     // The authorization claim is searched in both tokens: Keycloak keeps role

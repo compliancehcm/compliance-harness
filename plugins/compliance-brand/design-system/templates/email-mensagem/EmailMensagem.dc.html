@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="E-mail · Mensagem padrão" description="Base para comunicados e avisos do RH: eyebrow, título, corpo, bloco de destaque e uma ação" -->
+<helmet><script src="./ds-base.js"></script><style>*{box-sizing:border-box}body{margin:0}</style></helmet>
+<div style="min-height:100vh;background:var(--background);color:var(--foreground);font-family:var(--font);padding:clamp(20px,3vw,40px)">
+  <header style="max-width:1180px;margin:0 auto 28px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--accent-strong)">Mensagem</div>
+    <h1 style="margin:10px 0 0;font-size:26px;font-weight:700;letter-spacing:var(--tracking-h1);color:var(--heading)">Template padrão de envio</h1>
+    <p style="margin:8px 0 0;font-size:14px;color:var(--muted-foreground);max-width:760px;text-wrap:pretty">Base para qualquer comunicado do departamento pessoal — fechamento de folha, aviso de férias coletivas, mudança de política. O arquivo <code>mensagem-padrao.html</code> traz comentários marcando cada bloco que pode ser trocado ou removido.</p>
+  </header>
+  <div style="max-width:1180px;margin:0 auto;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+    <section style="flex:0 0 640px">
+      <div style="font-size:13px;color:var(--muted-foreground);margin-bottom:12px">Assunto: Fechamento da folha de agosto · ajustes até 28/08</div>
+      <iframe src="./mensagem-padrao.html" title="Mensagem padrão" style="width:640px;height:980px;border:1px solid var(--border);border-radius:12px;background:var(--card)"></iframe>
+    </section>
+    <section style="flex:1;min-width:300px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Blocos, na ordem</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Preheader</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">~85 caracteres, oculto. Resume o prazo ou a ação — nunca repita o assunto.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Cabeçalho</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Fixo. Faixa azul-marinho, lockup e filete âmbar.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Assunto</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Eyebrow com a categoria (Comunicado, Aviso, Prazo), título curto em frase e a linha de origem: setor · data.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Corpo</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Um a três parágrafos de 15px/24. O primeiro entrega a informação; os seguintes tratam de exceção e prazo.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Destaque · opcional</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Inset cinza para prazo, valor ou caminho no portal. Remova quando não houver dado a isolar.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Ação · opcional</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Um botão, verbo no infinitivo nomeando o resultado. Nunca dois.</div></div>
+        <div style="border:1px solid var(--muted);border-radius:8px;padding:12px 14px"><div style="font-size:14px;font-weight:600;color:var(--row-title)">Assinatura e rodapé</div><div style="font-size:13px;color:var(--muted-foreground);line-height:1.5">Canal do DP acima do filete; endereço postal e preferências de e-mail fora do cartão.</div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:1120}}"></script>
+</body>
+</html>

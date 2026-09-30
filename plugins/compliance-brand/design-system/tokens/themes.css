@@ -1,0 +1,20 @@
+/* Five shipped themes. Each one only re-declares semantic aliases —
+   never component CSS. Set with document.documentElement[data-theme]. */
+
+/* Escuro — mesma paleta (marinho + âmbar) sobre superfícies escuras */
+[data-theme="escuro"]{--heading:#aebbe3;--row-bg:#172344;--row-hover-bg:#1c2a4f;--row-title:#dfe6f7;--background:#0a1226;--foreground:#eef1f8;--card:#131e3b;--card-subtle:#172344;--border:#22305a;--border-subtle:#1e2b50;--border-input:#2b3a68;--muted:#1a2647;--muted-foreground:#98a5c6;--secondary-foreground:#c7d2ef;--primary:#7d95d8;--primary-foreground:#0a1226;--primary-hover:#9db0e0;--primary-muted-foreground:#1b2d59;--nav-bg:#101a33;--nav-fg:#aebbe3;--nav-fg-strong:#ffffff;--nav-muted:#8fa3d9;--nav-hover:rgba(255,255,255,.06);--nav-active-bg:rgba(125,149,216,.22);--nav-active-fg:#ffffff;--nav-border:rgba(255,255,255,.08);--nav-badge-bg:#f5a623;--nav-badge-fg:#101a33;--header-icon:#aebbe3;--header-icon-hover-bg:#1a2647;--status-success-bg:#0d3a2b;--status-success-fg:#6ee7b7;--status-danger-bg:#3d1522;--status-danger-fg:#fda4af;--status-warning-bg:#3d2c10;--status-warning-fg:#fcd34d;--status-info-bg:#1b2d59;--status-info-fg:#aebbe3;--status-purple-bg:#241d44;--status-purple-fg:#c3b5f5;--danger-soft-bg:#2d1119;--danger-soft-border:#5c2130;--danger-soft-fg:#fda4af;--danger-soft-fg-strong:#fecdd3;--scrim:rgba(5,8,18,.65);--scrim-light:rgba(5,8,18,.35)}
+
+/* Compliance Light — the blue Compliance Soluções palette */
+[data-theme="compliance-light"]{--heading:#122f4c;--row-bg:#fbfcfe;--row-hover-bg:#f2f7fb;--row-title:#1f78ba;--background:#f4f8fb;--foreground:#122f4c;--card:#ffffff;--border:#d8e5f0;--muted:#e9f2f9;--muted-foreground:#6d8ba6;--secondary-foreground:#3c5a77;--primary:#2e8fd5;--primary-foreground:#ffffff;--primary-hover:#1f78ba;--primary-muted-foreground:#cfe7f8;--nav-bg:var(--card);--nav-fg:var(--secondary-foreground);--nav-fg-strong:var(--foreground);--nav-hover:var(--muted);--nav-active-bg:var(--muted);--nav-active-fg:var(--foreground);--nav-border:var(--border);--nav-badge-bg:var(--primary);--nav-badge-fg:var(--primary-foreground)}
+
+/* Alma RH — Dark, green accent on deep navy */
+[data-theme="alma-dark"]{--heading:#f8fafc;--row-bg:#12203a;--row-hover-bg:#172845;--row-title:#e2eaf5;--background:#081120;--foreground:#f8fafc;--card:#0e1b2e;--border:#1c2c44;--muted:#152540;--muted-foreground:#8fa3bd;--secondary-foreground:#c4d2e4;--primary:#22c55e;--primary-foreground:#ffffff;--primary-hover:#16a34a;--primary-muted-foreground:#bbf7d0;--nav-bg:var(--card);--nav-fg:var(--secondary-foreground);--nav-fg-strong:var(--foreground);--nav-hover:var(--muted);--nav-active-bg:var(--muted);--nav-active-fg:var(--foreground);--nav-border:var(--border);--nav-badge-bg:var(--primary);--nav-badge-fg:var(--primary-foreground)}
+
+/* NetSuite Redwood — Oracle's Redwood look: warm neutral surfaces, one
+   saturated accent, Oracle Sans for UI + Georgia for editorial lines, and the
+   decorative 8px stripe that Redwood puts at the very top of every screen.
+   Redwood ships nine header accents (lilac, ocean, pebble, pine, plum, rose,
+   sienna, slate, teal); this theme uses the teal/ocean one — the accent drives
+   the band, the avatar and the primary action together.
+   Stripe art: assets/redwood-stripe.svg (8px crop, --redwood-band-height) */
+[data-theme="netsuite-redwood"]{--heading:#161513;--row-bg:#faf9f7;--row-hover-bg:#f3f2f0;--row-title:#2c5266;--font:'Oracle Sans','Helvetica Neue',sans-serif;--font-redwood-serif:Georgia,'Times New Roman',serif;--redwood-band-height:8px;--redwood-band-accent:#2c5266;--redwood-surface-tint:#faf9f7;--background:#f5f4f2;--foreground:#161513;--card:#ffffff;--border:#d5d3cf;--muted:#eeedeb;--muted-foreground:#6f6d6a;--secondary-foreground:#474642;--primary:#2c5266;--primary-foreground:#ffffff;--primary-hover:#1e3d4d;--primary-muted-foreground:#b5d5e0;--nav-bg:var(--card);--nav-fg:var(--secondary-foreground);--nav-fg-strong:var(--foreground);--nav-hover:var(--muted);--nav-active-bg:var(--muted);--nav-active-fg:var(--foreground);--nav-border:var(--border);--nav-badge-bg:var(--primary);--nav-badge-fg:var(--primary-foreground)}

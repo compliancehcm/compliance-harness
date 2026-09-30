@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Tela Redwood" description="Página completa no tema Redwood — faixa de imagem no topo, Oracle Sans com Georgia e navegação inferior" -->
+<helmet><script src="./ds-base.js"></script>
+<style>@font-face{font-display:fallback;font-family:'Oracle Sans';font-weight:100 900;font-stretch:75% 125%;src:url('../../assets/OracleBrandVF_Tb_W_WghtWdth.woff2') format('woff2')}body{margin:0}</style>
+</helmet>
+<div data-theme="netsuite-redwood" ref="{{ rootRef }}" style="min-height:100vh;display:flex;flex-direction:column;background:var(--background);color:var(--foreground);font-family:var(--font)">
+  <div ref="{{ bandRef }}" aria-hidden="true" style="height:var(--redwood-band-height);flex-shrink:0;background-image:url('../../assets/redwood-stripe.svg');background-size:auto 8px;background-repeat:repeat-x;background-color:var(--redwood-band-accent)"></div>
+  <header style="display:flex;align-items:center;gap:16px;padding:0 clamp(16px,4vw,40px);height:56px;background:var(--card);border-bottom:1px solid var(--border)">
+    <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.BrandMark" size="sm" subtitle="{{ nulo }}" hint-size="190px,28px"></x-import>
+    <div style="width:1px;height:20px;background:var(--border)"></div>
+    <div style="font-size:14px;color:var(--muted-foreground);white-space:nowrap">Holerites e documentos</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.IconButton" icon="sino" label="Notificações" count="{{ 4 }}" hint-size="34px,34px"></x-import>
+      <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.Avatar" name="Mariana Alves" size="{{ 34 }}" hint-size="34px,34px"></x-import>
+    </div>
+  </header>
+  <main style="flex:1;width:100%;max-width:1180px;margin:0 auto;box-sizing:border-box;padding:clamp(20px,3vw,32px) clamp(16px,4vw,40px) 96px">
+    <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground)">Biblioteca corporativa</div>
+    <h1 style="font-family:var(--font-redwood-serif);font-size:34px;line-height:1.15;font-weight:400;margin:8px 0 10px;letter-spacing:-.01em">Bem-vinda, Mariana</h1>
+    <p style="margin:0;font-size:16px;line-height:1.5;color:var(--secondary-foreground);max-width:62ch">Quatro documentos aguardam sua aprovação e dois vencem esta semana. Comece pelos itens em fluxo de trabalho.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:24px 0 14px">
+      <div style="flex:1;min-width:260px;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-pill);padding:9px 16px">
+        <span style="background:var(--muted);border:1px solid var(--border);border-radius:var(--radius-pill);padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap">Documentos ✕</span>
+        <span style="background:var(--muted);border:1px solid var(--border);border-radius:var(--radius-pill);padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap">Em fluxo ✕</span>
+        <input placeholder="Filtrar por nome ou metadado" style="flex:1;min-width:120px;border:none;outline:none;font-family:inherit;font-size:14px;color:var(--foreground);background:transparent">
+      </div>
+      <button style="background:var(--primary);color:var(--primary-foreground);border:none;border-radius:8px;padding:10px 18px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="background:var(--primary-hover)">Enviar documento</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;color:var(--muted-foreground)">6 itens</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--secondary-foreground)">
+        <span>Ordenar por</span>
+        <select style="font-family:inherit;font-size:13px;color:var(--foreground);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 8px"><option>Última atualização</option><option>Nome</option><option>Data de criação</option></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,236px),1fr));gap:16px;margin-top:18px">
+      <sc-for list="{{ itens }}" as="doc" hint-placeholder-count="6">
+        <article style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column" style-hover="border-color:var(--primary)">
+          <div style="height:104px;background:var(--redwood-surface-tint);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted-foreground)">
+            <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.Icon" name="holerite" size="{{ 30 }}" stroke-width="{{ 1.5 }}" hint-size="30px,30px"></x-import>
+          </div>
+          <div style="padding:14px 14px 12px;display:flex;flex-direction:column;gap:6px;flex:1">
+            <div style="font-size:14px;font-weight:600;line-height:1.35">{{ doc.nome }}</div>
+            <div style="font-size:12px;color:var(--muted-foreground)">{{ doc.meta }}</div>
+            <div style="margin-top:auto;padding-top:10px"><span style="display:inline-block;border-radius:var(--radius-pill);padding:3px 10px;font-size:11px;font-weight:600;background:var(--muted);color:var(--secondary-foreground)">{{ doc.estado }}</span></div>
+          </div>
+        </article>
+      </sc-for>
+    </div>
+  </main>
+  <nav ref="{{ navRef }}" aria-label="Navegação principal" style="position:sticky;bottom:0;display:flex;justify-content:center;gap:4px;padding:8px clamp(16px,4vw,40px);background:var(--card);border-top:1px solid var(--border)">
+    <sc-for list="{{ navItens }}" as="item" hint-placeholder-count="5">
+      <button style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:84px;padding:6px 12px;border:none;border-radius:10px;background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted-foreground);cursor:pointer" style-hover="background:var(--muted);color:var(--foreground)">
+        <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.Icon" name="{{ item.icone }}" size="{{ 20 }}" hint-size="20px,20px"></x-import>{{ item.rotulo }}
+      </button>
+    </sc-for>
+  </nav>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:900},&quot;mostrarFaixa&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Faixa de imagem&quot;},&quot;posicaoNav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;inferior&quot;,&quot;superior&quot;],&quot;default&quot;:&quot;inferior&quot;,&quot;tsType&quot;:&quot;'inferior' | 'superior'&quot;,&quot;section&quot;:&quot;Navegação&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.rootRef = React.createRef();
+    this.bandRef = React.createRef();
+    this.navRef = React.createRef();
+  }
+  aplicar() {
+    const band = this.bandRef.current;
+    if (band) band.style.display = (this.props.mostrarFaixa ?? true) ? 'block' : 'none';
+    const nav = this.navRef.current;
+    if (nav) {
+      const topo = (this.props.posicaoNav ?? 'inferior') === 'superior';
+      nav.style.order = topo ? '-1' : '';
+      nav.style.position = topo ? 'static' : 'sticky';
+      nav.style.borderTop = topo ? 'none' : '1px solid var(--border)';
+      nav.style.borderBottom = topo ? '1px solid var(--border)' : 'none';
+      nav.style.justifyContent = topo ? 'flex-start' : 'center';
+    }
+  }
+  componentDidMount() { this.aplicar(); }
+  componentDidUpdate() { this.aplicar(); }
+  renderVals() {
+    return {
+      rootRef: this.rootRef, bandRef: this.bandRef, navRef: this.navRef, nulo: null,
+      itens: [
+        { nome: 'Política de conduta 2026', meta: 'PDF · 1,4 MB · atualizado há 2 dias', estado: 'Em revisão' },
+        { nome: 'Acordo coletivo — Sindicato SP', meta: 'PDF · 820 KB · atualizado há 5 dias', estado: 'Aguardando aprovação' },
+        { nome: 'Manual de integração', meta: 'DOCX · 2,1 MB · atualizado há 1 semana', estado: 'Publicado' },
+        { nome: 'Relatório de horas extras — julho', meta: 'XLSX · 640 KB · atualizado há 1 semana', estado: 'Publicado' },
+        { nome: 'Plano de cargos e salários', meta: 'PDF · 3,0 MB · atualizado há 2 semanas', estado: 'Vence em 5 dias' },
+        { nome: 'Termo de LGPD — colaboradores', meta: 'PDF · 410 KB · atualizado há 3 semanas', estado: 'Publicado' }
+      ],
+      navItens: [
+        { icone: 'dash', rotulo: 'Início' }, { icone: 'ponto', rotulo: 'Meu ponto' },
+        { icone: 'holerite', rotulo: 'Documentos' }, { icone: 'ferias', rotulo: 'Férias' },
+        { icone: 'vagas', rotulo: 'Vagas' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

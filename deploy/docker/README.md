@@ -6,7 +6,7 @@ The dsh web UI with this deployment's whole plugin layer already composed:
 |---|---|
 | `plugins/sso-auth` | the OIDC gate in front of everything |
 | `plugins/compliance-tenancy` | one confined harness per authenticated user |
-| `plugins/compliance-brand` | the brand occupants |
+| `plugins/compliance-brand` | the Compliance HCM design system: brand, themes, fonts, and the artifact styling service |
 | `plugins/compliance-user-menu` | the signed-in user's row in the sidebar footer |
 | `plugins/compliance-llm-openrouter` | OpenRouter as the composed default LLM |
 | `plugins/compliance-alma-mcp` | ALMA's tools, over MCP, per user |

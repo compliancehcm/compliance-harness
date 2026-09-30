@@ -35,6 +35,11 @@ export async function createFakeCtx(options = {}) {
   const effects = []
   const listeners = new Map()
   const logs = []
+  const indexTaps = []
+  // Services another plugin would provide (`options.services`), plus anything
+  // `ctx.provide` adds; `ctx.inject` waits for its names the way Cordis does.
+  const provided = new Map(Object.entries(options.services ?? {}))
+  const pendingInjects = []
 
   const server = createServer((req, res) => {
     const pathname = new URL(req.url, 'http://x').pathname
@@ -84,6 +89,10 @@ export async function createFakeCtx(options = {}) {
         }
         throw new Error(`fake-ctx serves only exact and prefix routes, got ${route.kind}`)
       },
+      tapIndex(transform) {
+        indexTaps.push(transform)
+        return () => { indexTaps.splice(indexTaps.indexOf(transform), 1) }
+      },
     },
     tools: {
       register(definition) {
@@ -107,7 +116,22 @@ export async function createFakeCtx(options = {}) {
     },
     get(serviceName) {
       if (serviceName === 'skills') return options.skillsAvailable === false ? undefined : ctx.skills
-      return undefined
+      return provided.get(serviceName)
+    },
+    provide(serviceName, value) {
+      provided.set(serviceName, value)
+      for (const pending of [...pendingInjects]) {
+        if (pending.names.every(n => ctx.get(n) !== undefined)) {
+          pendingInjects.splice(pendingInjects.indexOf(pending), 1)
+          pending.run()
+        }
+      }
+      return () => { provided.delete(serviceName) }
+    },
+    inject(names, callback) {
+      const run = () => callback({ get: n => ctx.get(n), effect: ctx.effect, on: ctx.on, slots: ctx.slots })
+      if (names.every(n => ctx.get(n) !== undefined)) run()
+      else pendingInjects.push({ names, run })
     },
     effect(setup, label) {
       // The real ctx.effect runs the setup immediately and keeps the disposer;
@@ -129,6 +153,7 @@ export async function createFakeCtx(options = {}) {
     skills,
     logs,
     effects,
+    indexTaps,
     /** Run one event's listeners the way the host does. */
     emit(event, payload) {
       for (const listener of listeners.get(event) ?? []) listener(payload)

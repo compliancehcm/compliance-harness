@@ -1,0 +1,27 @@
+:root{
+  /* Corner radii — cards 12, controls 8, menu items 6, pills 999 */
+  --radius-sm:6px;
+  --radius-md:7px;   /* 28px logo tile */
+  --radius-lg:8px;   /* buttons, inputs, list rows */
+  --radius-menu:10px;/* popovers, toast */
+  --radius-tile:11px;/* 44px login logo tile */
+  --radius-xl:12px;  /* cards, modals */
+  --radius-pill:999px;
+
+  /* Elevation — used sparingly: popovers, toast, active segment only */
+  --shadow-segment:0 1px 2px rgba(0,0,0,.08);
+  --shadow-popover:0 8px 30px rgba(0,0,0,.15);
+  --shadow-toast:0 8px 24px rgba(0,0,0,.25);
+
+  /* Borders */
+  --border-width:1px;
+  --border-hairline:1px solid var(--border);
+  --border-inner:1px solid var(--muted); /* row dividers inside cards */
+
+  /* Motion */
+  --duration-fast:.2s; /* @kind other */
+  --duration-base:.25s; /* @kind other */
+  --easing:ease; /* @kind other */
+  --transition-nav:width .2s ease; /* @kind other */
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}

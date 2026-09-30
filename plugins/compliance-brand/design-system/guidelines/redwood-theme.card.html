@@ -1,0 +1,32 @@
+<!-- @dsCard group="Colors" viewport="1200x900" name="Tema Redwood" subtitle="Faixa de 8px, Oracle Sans e os nove acentos de cabeçalho" -->
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Tema Redwood</title><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;padding:24px;background:var(--background);color:var(--foreground);font-family:var(--font);font-size:14px;line-height:1.5}h2{font-size:16px;margin:28px 0 10px;font-weight:600}h2:first-of-type{margin-top:20px}p{margin:0 0 10px;color:var(--secondary-foreground);max-width:70ch}.stripe{height:8px;background-image:url('../assets/redwood-stripe.svg');background-size:auto 8px;background-repeat:repeat-x;background-color:#2c5266;border-radius:4px}.g{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.sw{width:104px;border:1px solid var(--border);border-radius:8px;overflow:hidden}.sw i{display:block;height:44px}.sw b{display:block;padding:6px 8px;font-size:11px;font-weight:600;background:var(--card)}.sw b span{display:block;font-weight:400;color:var(--muted-foreground);font-family:ui-monospace,monospace}.spec{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:10px}.ser{font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:1.2;margin:0 0 6px}.san{font-size:15px;color:var(--muted-foreground);margin:0}table{border-collapse:collapse;font-size:13px;margin-top:10px}td,th{text-align:left;padding:6px 16px 6px 0;border-bottom:1px solid var(--border)}th{font-weight:600;color:var(--muted-foreground)}code{font-family:ui-monospace,monospace;font-size:12px;background:var(--muted);padding:1px 5px;border-radius:4px}</style>
+</head><body>
+<h2>Faixa de imagem</h2>
+<p>Toda tela Redwood abre com a faixa decorativa no topo — formas abstratas com textura de dados, o elemento visual que identifica o sistema. A faixa é sempre o recorte de 8px (<code>--redwood-band-height</code>), <code>assets/redwood-stripe.svg</code> repetida no eixo x. Ela fica acima do cabeçalho de marca, nunca dentro dele, e é o que o <code>&lt;AppHeader redwoodStripe&gt;</code> mostra.</p>
+<div class="stripe"></div>
+<h2>Tipografia</h2>
+<p>Redwood não usa a família do produto. A UI é <b>Oracle Sans</b> — fonte variável de peso e largura, desenhada para o sistema — e as linhas editoriais (títulos de boas-vindas, chamadas) pareiam com <b>Georgia</b> serifada. O par é o que dá o tom Redwood.</p>
+<div class="spec"><p class="ser">Bem-vinda, Mariana</p><p class="san">Oracle Sans 15/1.5 · <code>--font</code> · Georgia <code>--font-redwood-serif</code></p></div>
+<h2>Acentos de cabeçalho</h2>
+<p>Redwood entrega nove acentos de cabeçalho — lilac, ocean, pebble, pine, plum (padrão), rose, sienna, slate e teal. Trocar o acento troca a cor da faixa, do avatar e da ação primária ao mesmo tempo. Este tema traz o acento teal/ocean; os demais não estão empacotados aqui.</p>
+<div class="g">
+<div class="sw"><i style="background:#2c5266"></i><b>Faixa / primário<span>#2C5266</span></b></div>
+<div class="sw"><i style="background:#b5d5e0"></i><b>Realce claro<span>#B5D5E0</span></b></div>
+<div class="sw"><i style="background:#437c94"></i><b>Realce médio<span>#437C94</span></b></div>
+<div class="sw"><i style="background:#e2c06b"></i><b>Acento quente<span>#E2C06B</span></b></div>
+<div class="sw"><i style="background:#f5f4f2"></i><b>Fundo<span>#F5F4F2</span></b></div>
+<div class="sw"><i style="background:#d5d3cf"></i><b>Borda<span>#D5D3CF</span></b></div>
+</div>
+<h2>Tokens do tema</h2>
+<table>
+<tr><th>Token</th><th>Valor</th><th>Uso</th></tr>
+<tr><td><code>--font</code></td><td>'Oracle Sans'</td><td>toda a interface</td></tr>
+<tr><td><code>--font-redwood-serif</code></td><td>Georgia</td><td>linhas editoriais</td></tr>
+<tr><td><code>--redwood-band-height</code></td><td>8px</td><td>altura da faixa</td></tr>
+<tr><td><code>--redwood-band-accent</code></td><td>#2C5266</td><td>fundo da faixa</td></tr>
+<tr><td><code>--redwood-surface-tint</code></td><td>#FAF9F7</td><td>superfície secundária</td></tr>
+</table>
+<p style="margin-top:14px">O tema é uma comparação: existe para colocar o Compliance HCM lado a lado com o Redwood da Oracle, não para ser usado em produção. Oracle Sans e a arte da faixa são ativos de marca da Oracle.</p>
+</body></html>

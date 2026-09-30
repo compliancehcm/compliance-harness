@@ -81,11 +81,15 @@ expect() {
   local name=$1 label=$2 want_status=$3 grep_for=$4; shift 4
   local out status
   out=$(curl -sS -D - -o - "$@") || fail_with_logs "$name" "$label: request failed"
-  status=$(printf '%s' "$out" | head -n1 | awk '{print $2}')
+  # Here-strings, not `printf | head` / `printf | grep -q`: both readers exit
+  # early, and a response larger than the pipe buffer (the login page inlines
+  # its font and logo, ~95 KB) then kills the printf with SIGPIPE, which
+  # pipefail turns into a failed smoke on a perfectly healthy container.
+  status=$(awk 'NR == 1 { print $2; exit }' <<<"$out")
   [[ $status == "$want_status" ]] \
     || fail_with_logs "$name" "$label: expected HTTP $want_status, got $status"
   if [[ -n $grep_for ]]; then
-    printf '%s' "$out" | grep -qi -- "$grep_for" \
+    grep -qi -- "$grep_for" <<<"$out" \
       || fail_with_logs "$name" "$label: response lacks '$grep_for'"
   fi
   printf 'smoke: %s: %s ok\n' "$name" "$label"

@@ -1,0 +1,289 @@
+/* Compliance HCM Design System → Web client token bridge.
+
+   The design system speaks semantic aliases (--background, --card, --primary…)
+   and every one of its five themes re-declares only those. The Web client
+   speaks --dsw-* aliases, declared on `body` and `body[data-ds-dark-theme]` by
+   ui-theme's design-platform.css. This sheet maps the second vocabulary onto the
+   first, ONCE, so switching a design-system theme recolours the whole app with
+   no per-theme block here.
+
+   Selector weight is (0,1,2) — above upstream's `body[data-ds-dark-theme]`
+   (0,1,1) — so the sheet wins whatever order the stylesheets land in <head>.
+   Nothing here is a raw hex: every value is a design-system alias, or a
+   color-mix() of two, so the five themes stay the only source of colour. */
+
+html body,
+html body[data-ds-dark-theme] {
+  /* Type — Inter (Oracle Sans under Redwood, through the theme's --font). */
+  --dsw-font-family: var(--font);
+
+  /* Surfaces. Flat: page is --background, every raised surface is --card. */
+  --dsw-alias-bg-base: var(--background);
+  --dsw-alias-bg-layer-1: var(--card);
+  --dsw-alias-bg-layer-2: var(--card);
+  --dsw-alias-bg-layer-3: var(--card);
+  --dsw-alias-bg-overlay: var(--border);
+  --dsw-alias-bg-module-platform: var(--muted);
+  --dsw-alias-bg-multi-select: var(--muted);
+  --dsw-alias-bg-skeleton: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --dsw-alias-bg-mask-1: var(--scrim);
+  --dsw-alias-bg-mask-2: var(--scrim-light);
+  --dsw-alias-bg-mask-3: var(--scrim);
+
+  /* Hairlines — --border between regions, a lighter mix for repetition. */
+  --dsw-alias-border-l1: color-mix(in srgb, var(--border) 55%, transparent);
+  --dsw-alias-border-l2: var(--border);
+  --dsw-alias-border-l2-darkmode-thin: var(--border);
+  --dsw-alias-border-l3: var(--border);
+  --dsw-alias-border-l4: color-mix(in srgb, var(--border) 80%, var(--muted-foreground));
+  --dsw-elevation-stroke-color: var(--border);
+
+  /* Brand and actions. */
+  --dsw-alias-brand-primary: var(--primary);
+  --dsw-alias-brand-primary-invert: var(--primary-foreground);
+  --dsw-alias-brand-primary-new-colorprimary-new-color: var(--primary);
+  --dsw-alias-brand-text: var(--heading);
+  --dsw-alias-link: var(--primary);
+  --dsw-alias-button-primary-fill: var(--primary);
+  --dsw-alias-button-primary-hover: var(--primary-hover);
+  --dsw-alias-button-primary-dimmed: color-mix(in srgb, var(--primary) 35%, var(--card));
+  --dsw-alias-button-info-fill: var(--primary);
+  --dsw-alias-button-info-hover: var(--primary-hover);
+  --dsw-alias-button-contrast-fill: var(--secondary-foreground);
+  --dsw-alias-button-elevated-fill: var(--card);
+  --dsw-alias-button-floating-fill: var(--card);
+  --dsw-alias-button-floating-hover: var(--muted);
+  --dsw-alias-button-ghost-active-border: var(--primary);
+  --dsw-alias-button-ghost-active-fill: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --dsw-alias-button-ghost-active-hover: color-mix(in srgb, var(--primary) 16%, var(--card));
+
+  /* Hover changes background only (DS "States"); translucent so it reads on
+     both --background and --card. */
+  --dsw-alias-interactive-bg-hover: color-mix(in srgb, var(--primary) 7%, transparent);
+  --dsw-alias-interactive-bg-active: color-mix(in srgb, var(--primary) 11%, transparent);
+  --dsw-alias-interactive-bg-hover-accent: color-mix(in srgb, var(--primary) 15%, transparent);
+  --dsw-alias-interactive-bg-hover-danger: color-mix(in srgb, var(--danger) 7%, transparent);
+  --dsw-alias-interactive-bg-hover-solid: var(--muted);
+
+  /* Text. Never pure black: --foreground is the navy-black of the palette. */
+  --dsw-alias-label-primary: var(--foreground);
+  --dsw-alias-label-primary-dimmed: var(--secondary-foreground);
+  --dsw-alias-label-primary-bluish: var(--heading);
+  --dsw-alias-label-secondary: var(--secondary-foreground);
+  --dsw-alias-label-tertiary: var(--muted-foreground);
+  --dsw-alias-label-caption: var(--muted-foreground);
+  --dsw-alias-label-dimmed: color-mix(in srgb, var(--muted-foreground) 55%, var(--card));
+  --dsw-alias-label-primary-foreground: var(--primary-foreground);
+  --dsw-alias-label-primary-inverted: var(--card);
+
+  /* Markdown inset blocks sit on --muted, like the DS's inset blocks. */
+  --dsw-alias-markdown-citation: var(--muted);
+  --dsw-alias-markdown-code-block: var(--muted);
+  --dsw-alias-markdown-code-block-banner: var(--muted);
+  --dsw-alias-markdown-code-segment-selected: var(--card);
+  --dsw-alias-markdown-code-segment-unselected: var(--muted);
+  --dsw-alias-markdown-inline-code: var(--muted);
+  --dsw-alias-markdown-placeholder: var(--muted);
+  --dsw-alias-markdown-tag: var(--muted);
+
+  --dsw-alias-scrollbar-bg-l1: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  --dsw-alias-scrollbar-bg-l2: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  --dsw-alias-scrollbar-hover-l1: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  --dsw-alias-scrollbar-hover-l2: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+
+  /* States: green approved, red rejected, amber pending, primary for info. */
+  --dsw-alias-state-business-primary: var(--primary);
+  --dsw-alias-state-business-tertiary: color-mix(in srgb, var(--primary) 12%, var(--card));
+  --dsw-alias-state-error-primary: var(--danger);
+  --dsw-alias-state-error-secondary: color-mix(in srgb, var(--danger) 70%, var(--card));
+  --dsw-alias-state-success-primary: var(--success);
+  --dsw-alias-state-success-secondary: color-mix(in srgb, var(--success) 70%, var(--card));
+  --dsw-alias-state-success-tertiary: color-mix(in srgb, var(--success) 14%, var(--card));
+  --dsw-alias-state-warn-label: var(--accent-strong);
+  --dsw-alias-state-warn-primary: var(--accent);
+  --dsw-alias-state-warn-secondary: color-mix(in srgb, var(--accent) 70%, var(--card));
+  --dsw-alias-state-warn-tertiary: var(--accent-soft-bg);
+
+  /* Toast is the primary fill (DS Toast); the tooltip keeps a dark fill in
+     every theme because its text is a fixed white upstream. */
+  --dsw-alias-toast-bg: var(--primary);
+  --dsw-alias-tooltip-bg: var(--brand-900);
+
+  /* Component seats. The sidebar column itself is repainted below, from the
+     design system's --nav-* slots. */
+  --dsw-specific-sidebar-fill: var(--nav-bg);
+  --dsw-specific-sidebar-nav-item-hover: var(--nav-hover);
+  --dsw-specific-sidebar-nav-item-active: var(--nav-active-bg);
+  --dsw-specific-sidebar-nav-item-active-accent: var(--nav-active-bg);
+  --dsw-specific-bubble: color-mix(in srgb, var(--primary) 8%, var(--card));
+  --dsw-specific-bubble-highlight: color-mix(in srgb, var(--primary) 18%, var(--card));
+  --dsw-specific-input-major: var(--card);
+  --dsw-specific-login-input: var(--muted);
+  --dsw-specific-menu: var(--card);
+  --dsw-specific-selector: var(--muted);
+  --dsw-specific-tip: var(--muted);
+
+  /* The upstream accent ramp, read directly by a handful of module sheets,
+     follows the theme's primary too. */
+  --dsw-static-deepseek-50: color-mix(in srgb, var(--primary) 7%, var(--card));
+  --dsw-static-deepseek-100: color-mix(in srgb, var(--primary) 14%, var(--card));
+  --dsw-static-deepseek-200: color-mix(in srgb, var(--primary) 30%, var(--card));
+  --dsw-static-deepseek-400: var(--primary-hover);
+  --dsw-static-deepseek-450: var(--primary-hover);
+  --dsw-static-deepseek-500: var(--primary);
+
+  /* Elevation: popovers only (DS "Elevation"). */
+  --dsw-shadow-lv3: var(--shadow-popover);
+
+  --dsw-linear-gradient-think: linear-gradient(180deg, var(--background) 20.19%, transparent 100%);
+  --dsw-linear-think-select: linear-gradient(180deg, var(--muted) 20.19%, transparent 100%);
+
+  /* Canvas: also answers ui-theme's pre-paint boot style. */
+  --dsh-boot-bg: var(--background);
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* In the dark themes the primary is a light tint, so white toast text needs a
+   darker fill. */
+html body[data-ds-dark-theme] {
+  --dsw-alias-toast-bg: color-mix(in srgb, var(--primary) 35%, var(--card));
+}
+
+/* NetSuite Redwood: the decorative stripe Redwood puts at the very top of every
+   screen (assets/redwood-stripe.svg, the 8px crop). Fixed and inert, so it
+   never takes a click or shifts the layout. */
+html[data-compliance-theme="netsuite-redwood"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--redwood-band-height, 8px);
+  background: var(--redwood-band-accent) var(--compliance-redwood-stripe) center / cover no-repeat;
+  pointer-events: none;
+  z-index: 2147483000;
+}
+
+/* ---- Sidebar ------------------------------------------------------------
+   The design system's navigation is its own surface: `--nav-bg` with
+   `--nav-fg` ink, `--nav-hover`, and a `--nav-active-bg` pill with
+   `--nav-active-fg` for the current item (Sidebar.jsx / NavItem.jsx). Every
+   theme declares those slots — solid navy in Padrão, deep navy in Escuro, and
+   the card-coloured variant in Compliance Light, Alma RH Dark and Redwood — so
+   pointing the column at them is right in all five.
+
+   The column has no stable attribute of its own. CSS-module classes ship as
+   `<hash>_<localName>`, so these rules match the local name (`_sidebarCol`,
+   `_panelRow`, …): the hash changes with every build, the local name only when
+   upstream renames the class. The tokens are re-declared on the column, so
+   everything inside it — including other plugins' footer actions — inherits
+   the navigation ink without a selector per component. Menus opened from the
+   sidebar are portalled out of it; the reset at the end covers any that are
+   not. */
+html body [class*="_sidebarCol"] {
+  --dsw-specific-sidebar-fill: var(--nav-bg);
+  --dsw-alias-label-primary: var(--nav-fg);
+  --dsw-alias-label-secondary: var(--nav-fg);
+  /* Muted nav ink is derived rather than read from --nav-muted: only the
+     default palette declares that slot, so the card-coloured nav themes would
+     inherit a tint made for navy. */
+  --dsw-alias-label-tertiary: color-mix(in srgb, var(--nav-fg) 72%, var(--nav-bg));
+  --dsw-alias-label-caption: color-mix(in srgb, var(--nav-fg) 72%, var(--nav-bg));
+  --dsw-alias-label-dimmed: color-mix(in srgb, var(--nav-fg) 50%, var(--nav-bg));
+  --dsw-alias-interactive-bg-hover: var(--nav-hover);
+  --dsw-alias-interactive-bg-active: var(--nav-active-bg);
+  --dsw-alias-button-floating-hover: var(--nav-hover);
+  --dsw-alias-border-l1: var(--nav-border);
+  --dsw-alias-border-l2: var(--nav-border);
+  --dsw-alias-border-l3: var(--nav-border);
+  --dsw-alias-border-l4: var(--nav-border);
+  --dsw-alias-scrollbar-bg-l2: color-mix(in srgb, var(--nav-fg) 30%, transparent);
+  --dsw-alias-scrollbar-hover-l2: color-mix(in srgb, var(--nav-fg) 50%, transparent);
+  background: var(--nav-bg);
+  border-right-color: var(--nav-border);
+  color: var(--nav-fg);
+}
+
+/* The brand lockup reads in the strong nav ink (BrandMark tone="nav"). */
+html body [class*="_sidebarCol"] button[class*="_brand"] {
+  color: var(--nav-fg-strong);
+}
+
+/* Nav rows: 8px radius, 500 weight (NavItem "sidebar"). */
+html body [class*="_sidebarCol"] [class*="_panelRow"],
+html body [class*="_sidebarCol"] [class*="_sessionRow"] {
+  border-radius: var(--radius-lg);
+  font-weight: var(--weight-medium);
+}
+
+/* The current item: the active pill, strong ink, 600 weight. */
+html body [class*="_sidebarCol"] [class*="_panelRow"][class*="_panelActive"],
+html body [class*="_sidebarCol"] [class*="_sessionRow"][class*="_selected"] {
+  --dsw-alias-label-primary: var(--nav-active-fg);
+  --dsw-alias-label-secondary: var(--nav-active-fg);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-fg);
+  font-weight: var(--weight-semibold);
+}
+
+/* New Session is the one call to action on the rail: the nav's high-emphasis
+   pair (`--nav-badge-bg` / `--nav-badge-fg` — white on navy in Padrão, amber
+   in Escuro, the primary in the light themes). The collapsed rail keeps its
+   icon-only form. */
+html body [class*="_sidebarCol"] [class*="_root"]:not([class*="_collapsed"]) button[class*="_newSession"] {
+  background: var(--nav-badge-bg);
+  color: var(--nav-badge-fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  font-weight: var(--weight-semibold);
+}
+html body [class*="_sidebarCol"] [class*="_root"]:not([class*="_collapsed"]) button[class*="_newSession"]:hover {
+  background: color-mix(in srgb, var(--nav-badge-bg) 88%, var(--nav-bg));
+}
+html body [class*="_sidebarCol"] [class*="_collapsed"] button[class*="_newSession"] {
+  color: var(--nav-fg-strong);
+  border-radius: var(--radius-lg);
+}
+
+/* Any surface that does render inside the column goes back to the content
+   palette, so a menu on --card never gets the light nav ink. */
+html body [class*="_sidebarCol"] :is([role="menu"], [role="listbox"], [role="dialog"], [role="tooltip"]) {
+  --dsw-alias-label-primary: var(--foreground);
+  --dsw-alias-label-secondary: var(--secondary-foreground);
+  --dsw-alias-label-tertiary: var(--muted-foreground);
+  --dsw-alias-label-caption: var(--muted-foreground);
+  --dsw-alias-interactive-bg-hover: color-mix(in srgb, var(--primary) 7%, transparent);
+  --dsw-alias-border-l1: color-mix(in srgb, var(--border) 55%, transparent);
+  --dsw-alias-border-l2: var(--border);
+  --dsw-alias-border-l3: var(--border);
+  --dsw-alias-border-l4: color-mix(in srgb, var(--border) 80%, var(--muted-foreground));
+  color: var(--foreground);
+}
+
+/* ---- Buttons ------------------------------------------------------------
+   The shared Button primitive (ui-primitives) is a capsule: 18px radius,
+   400 weight. The design system's buttons are 8px, 600 on a solid fill and 500
+   at the small size, with secondary as a bordered --card (Button.jsx). The
+   primitive renders `<hash>_button <hash>_<variant> <hash>_<size>`; both
+   classes are required here, and no other module pairs a `button` class with
+   those variant names. Colours already follow the token bridge above
+   (--primary / --primary-hover / --primary-foreground). */
+html body button[class*="_button "] {
+  border-radius: var(--radius-lg);
+  font-weight: var(--weight-medium);
+}
+html body button[class*="_button "][class*="_primary"] {
+  font-weight: var(--weight-semibold);
+}
+html body button[class*="_button "][class*="_sm"] {
+  border-radius: var(--radius-lg);
+  font-size: var(--text-13);
+}
+html body button[class*="_button "][class*="_outline"] {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+html body button[class*="_button "][class*="_outline"]:hover:not(:disabled) {
+  background: var(--muted);
+}

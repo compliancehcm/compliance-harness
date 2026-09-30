@@ -1,0 +1,88 @@
+/* Compliance HCM — paleta base + aliases semânticos.
+   Tema padrão: azul-marinho #2b4587 + âmbar #f5a623. */
+:root{
+  /* Rampa da marca (azul-marinho) */
+  --brand-50:#f4f6fb;--brand-100:#e8ecf7;--brand-200:#ced7ee;--brand-300:#aebbe3;--brand-400:#8fa3d9;--brand-500:#3a56a0;--brand-600:#2b4587;--brand-700:#233a72;--brand-800:#1b2d59;--brand-900:#101a33;--brand-950:#0a1226;
+
+  /* Acento âmbar */
+  --accent:#f5a623;
+  --accent-strong:#b45309;
+  --accent-soft-bg:rgba(245,166,35,.12);
+  --accent-soft-border:rgba(245,166,35,.3);
+
+  /* Rampa neutra (cinzas azulados) */
+  --zinc-50:#f4f6fb;--zinc-100:#eef1f8;--zinc-200:#e0e5f0;--zinc-400:#96a1bb;--zinc-500:#5b6784;--zinc-600:#3c4a6b;--zinc-700:#2d3a56;--zinc-800:#1e2942;--zinc-900:#101a33;--zinc-950:#0a1226;
+  --white:#ffffff;
+
+  /* Semantic surface / text aliases — the app never uses raw hex, only these */
+  --background:#f4f6fb;
+  --foreground:#101a33;
+  --card:#ffffff;
+  --card-subtle:#fbfcfe;
+  --border:#e0e5f0;
+  --border-subtle:#e6eaf4;
+  --border-input:#d5dbeb;
+  --muted:#eef1f8;
+  --muted-foreground:#5b6784;
+  --secondary-foreground:#3c4a6b;
+  --primary:#2b4587;
+  --primary-foreground:#ffffff;
+  --primary-hover:#3a56a0;
+  --primary-muted-foreground:#9db0e0;
+  /* Títulos e listas — nunca texto preto puro */
+  --heading:#2b4587;
+  --row-bg:#fbfcfe;
+  --row-hover-bg:#f7f9fd;
+  --row-title:#2b4587;
+
+  /* Navigation slots — sidebar sólida sobre o primary */
+  --nav-bg:#2b4587;
+  --nav-fg:#aebbe3;
+  --nav-fg-strong:#ffffff;
+  --nav-muted:#8fa3d9;
+  --nav-hover:rgba(255,255,255,.08);
+  --nav-active-bg:rgba(255,255,255,.16);
+  --nav-active-fg:#ffffff;
+  --nav-border:rgba(255,255,255,.12);
+  --nav-badge-bg:#ffffff;
+  --nav-badge-fg:#2b4587;
+  --nav-tip-bg:rgba(245,166,35,.12);
+  --nav-tip-border:rgba(245,166,35,.3);
+  --nav-tip-fg:#c7d2ef;
+  --nav-progress-track:rgba(255,255,255,.2);
+  --nav-progress-fill:#f5a623;
+
+  /* Header chrome */
+  --header-icon:#3c4a6b;
+  --header-icon-hover-bg:#eef1f8;
+
+  /* Status pills: soft tinted background + dark text of the same hue */
+  --status-success-bg:#d1fae5;--status-success-fg:#065f46;
+  --status-danger-bg:#fee2e2;--status-danger-fg:#991b1b;
+  --status-warning-bg:#fef3c7;--status-warning-fg:#92400e;
+  --status-info-bg:#e8ecf7;--status-info-fg:#233a72;
+  --status-purple-bg:#eae6fb;--status-purple-fg:#4c3a97;
+
+  /* Trilhos de estado (borda esquerda de linhas) */
+  --rail-pending:#f59e0b;
+  --rail-done:#10b981;
+
+  /* Inline feedback */
+  --danger:#f43f5e;
+  --danger-soft-bg:#fff1f3;
+  --danger-soft-border:#fecdd3;
+  --danger-soft-fg:#be123c;
+  --danger-soft-fg-strong:#9f1239;
+  --success:#10b981;
+
+  /* Presence dots (equipe / escala) */
+  --presence-present:#10b981;
+  --presence-remote:#7c5cd6;
+  --presence-absent:#f43f5e;
+  --presence-vacation:#2b4587;
+  --presence-on-dark:#6ee7b7;
+
+  /* Overlays */
+  --scrim:rgba(16,26,51,.55);
+  --scrim-light:rgba(16,26,51,.2);
+}

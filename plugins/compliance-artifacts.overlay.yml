@@ -24,6 +24,10 @@
         maxHtmlBytes: 524288
         maxVersions: 50
         registerSkill: true
+        # Serve every document with the Compliance HCM design system inlined,
+        # from compliance-brand's `complianceDesignSystem` service. A no-op when
+        # that plugin is not composed.
+        designSystem: true
         allowedOrigins:
           - https://cdn.jsdelivr.net
           - https://cdnjs.cloudflare.com

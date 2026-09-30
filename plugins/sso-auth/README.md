@@ -49,7 +49,8 @@ face and a way out (see [Browser half](#browser-half)).
 | `src/oidc.ts` | Discovery, PKCE, code exchange, refresh, logout URL |
 | `src/claims.ts` | Payload decoding and the claim requirement |
 | `src/sessions.ts` | Opaque-id sessions, expiry, pending logins |
-| `src/pages.ts` | Server-rendered pages and the liveness script |
+| `src/pages.ts` | Server-rendered pages (the Compliance HCM design system's login layout, pt-BR) and the liveness script |
+| `assets/` | Inter and the white Compliance wordmark, inlined into those pages as `data:` URIs — the pages may reference nothing by URL |
 | `client.js` | Browser half: the user row and the sign-out action |
 
 ## Browser half
