@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Tela do Portal" description="Shell do Compliance HCM — sidebar, header e uma tela de conteúdo pronta para editar" -->
+<helmet><script src="./ds-base.js"></script></helmet>
+<div style="display:flex;flex-direction:column;min-height:100vh;background:var(--background);color:var(--foreground);font-family:var(--font)">
+<div style="height:var(--redwood-band-height,0px);background:url(../../assets/redwood-stripe.svg) center/cover no-repeat;flex:none"></div>
+<div style="display:flex;flex:1;min-height:0">
+  <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.Sidebar" items="{{ nav }}" active-key="ferias" user="{{ user }}" hint-size="240px,100vh"></x-import>
+  <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <x-import component-from-global-scope="ComplianceHCMDesignSystem_dab0b1.AppHeader" title="Férias" notification-count="{{ 3 }}" hint-size="100%,59px"></x-import>
+    <div style="padding:clamp(16px,3vw,28px);max-width:1180px;width:100%;box-sizing:border-box;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+        <div>
+          <h1 style="margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--heading)">Minhas férias</h1>
+          <div style="font-size:18px;color:var(--muted-foreground);margin-top:6px;line-height:1.4;font-weight:400">Saldo de 22 dias · período aquisitivo vence em <strong style="color:var(--accent-strong);font-weight:700">14/03/2027</strong></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-foreground);font-weight:500">Tema
+            <select value="{{ theme }}" onChange="{{ setTheme }}" style="font-family:var(--font);font-size:13px;color:var(--foreground);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer">
+              <option value="padrao">Padrão (claro)</option>
+              <option value="escuro">Escuro</option>
+              <option value="compliance-light">Compliance Light</option>
+              <option value="alma-dark">Alma RH Dark</option>
+              <option value="netsuite-redwood">NetSuite Redwood</option>
+            </select>
+          </label>
+          <button style="background:var(--primary);color:var(--primary-foreground);border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--primary-hover)">Solicitar férias</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px;margin-bottom:20px">
+        <div style="background:var(--primary);border:1px solid var(--primary);border-radius:12px;padding:16px"><div style="font-size:13px;color:var(--primary-foreground);font-weight:600">Saldo de férias</div><div style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:4px;color:var(--primary-foreground)">22 dias</div><div style="height:8px;border-radius:999px;background:var(--nav-progress-track);overflow:hidden;margin-top:10px"><div style="height:100%;width:73%;border-radius:999px;background:var(--accent)"></div></div><div style="font-size:12px;color:var(--primary-muted-foreground);margin-top:8px">vence em 14/03/2027 · 22 de 30 dias</div></div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px"><div style="font-size:13px;color:var(--muted-foreground);font-weight:500">Dias já gozados</div><div style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:4px;color:var(--heading)">8</div><div style="font-size:12px;color:var(--muted-foreground)">período 2025/2026</div></div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px"><div style="font-size:13px;color:var(--muted-foreground);font-weight:500">Abono pecuniário</div><div style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:4px;color:var(--heading)">10 dias</div><div style="font-size:12px;color:var(--muted-foreground)">disponível para venda</div></div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--heading)">Minhas solicitações</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--row-bg);border:1px solid var(--border-subtle);border-left:3px solid var(--rail-pending);border-radius:8px">
+            <div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--row-title)">10/08/2026 – 24/08/2026</div><div style="font-size:13px;color:var(--muted-foreground)">15 dias · solicitado em 12/07/2026</div></div>
+            <span style="background:var(--status-warning-bg);color:var(--status-warning-fg);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap">Aguardando aprovação</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--row-bg);border:1px solid var(--border-subtle);border-left:3px solid var(--rail-done);border-radius:8px">
+            <div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--row-title)">22/12/2025 – 31/12/2025</div><div style="font-size:13px;color:var(--muted-foreground)">10 dias · solicitado em 02/11/2025</div></div>
+            <span style="background:var(--status-success-bg);color:var(--status-success-fg);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap">Concluída</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;tema&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;padrao&quot;,&quot;escuro&quot;,&quot;compliance-light&quot;,&quot;alma-dark&quot;,&quot;netsuite-redwood&quot;],&quot;default&quot;:&quot;padrao&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;userName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Mariana Alves&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Usuário&quot;},&quot;userRole&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Analista de Marketing Pl&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Usuário&quot;}}">
+class Component extends DCLogic {
+  state = {theme: null};
+  get theme() { return this.state.theme ?? this.props.tema ?? 'padrao'; }
+  apply() {
+    const el = document.documentElement;
+    if (this.theme === 'padrao') el.removeAttribute('data-theme');
+    else el.setAttribute('data-theme', this.theme);
+  }
+  componentDidMount() { this.apply(); }
+  componentDidUpdate() { this.apply(); }
+  renderVals() {
+    return {
+      theme: this.theme,
+      setTheme: (e) => this.setState({theme: e.target.value}),
+      nav: [
+        {key:'dash', icon:'dash', label:'Início'},
+        {key:'ponto', icon:'ponto', label:'Meu ponto'},
+        {key:'holerite', icon:'holerite', label:'Holerites'},
+        {key:'ferias', icon:'ferias', label:'Minhas férias'},
+        {key:'vagas', icon:'vagas', label:'Vagas internas'}
+      ],
+      user: {name: this.props.userName ?? 'Mariana Alves', role: this.props.userRole ?? 'Analista de Marketing Pl'}
+    };
+  }
+}
+
+</script>
+</body>
+</html>

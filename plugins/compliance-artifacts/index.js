@@ -10,7 +10,9 @@
  *                 once written, so a URL the user already opened keeps showing
  *                 what they saw.
  *   src/route.js  one prefix route serving the document with its OWN CSP, which
- *                 is the whole reason it is a URL and not a `srcdoc` string.
+ *                 is the whole reason it is a URL and not a `srcdoc` string —
+ *                 and, when compliance-brand provides `complianceDesignSystem`,
+ *                 with the Compliance HCM design system inlined at serve time.
  *   src/skill.js  the `artifacts` skill, so the model knows what the sandbox
  *                 silently refuses before it writes a page it cannot see.
  *
@@ -40,8 +42,20 @@ const CONFIG_GLOBAL = '__COMPLIANCE_ARTIFACTS__'
 export function apply(ctx, rawConfig) {
   const config = resolveConfig(rawConfig)
 
+  // The Compliance HCM design system, when compliance-brand is composed. Held
+  // rather than captured: the service may arrive (or leave) after the route is
+  // mounted, and the route reads it per request. Without it a document is
+  // served exactly as written.
+  const designSystem = { current: undefined }
+  if (config.designSystem) {
+    ctx.inject(['complianceDesignSystem'], (scoped) => {
+      designSystem.current = scoped.get('complianceDesignSystem')
+      scoped.effect(() => () => { designSystem.current = undefined }, 'artifacts: design system')
+    })
+  }
+
   ctx.effect(
-    () => ctx.webServer.register({ kind: 'prefix', path: config.routePath, handler: artifactHandler(config) }),
+    () => ctx.webServer.register({ kind: 'prefix', path: config.routePath, handler: artifactHandler(config, designSystem) }),
     'artifacts: document route',
   )
 

@@ -68,7 +68,7 @@ jobs:
       - name: Smokes
         run: |
           status=0
-          for plugin in compliance-alma-mcp compliance-artifacts compliance-echarts \
+          for plugin in compliance-alma-mcp compliance-artifacts compliance-brand compliance-echarts \
                         compliance-pandas compliance-xlsx; do
             echo "::group::$plugin"
             node "plugins/$plugin/tests/smoke.mjs" || status=1

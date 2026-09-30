@@ -16,7 +16,8 @@ window.__ModuleLoader__.load({
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		// react/jsx-runtime is part of the implicit external baseline the shell
 		// seeds, so no `dsh.client.external` request is needed.
-		const { jsx } = require("react/jsx-runtime");
+		const { jsx, jsxs } = require("react/jsx-runtime");
+		const react = require("react");
 
 		/** Interlocking-rings mark, cropped from the source wordmark. 202x133. */
 		const MARK_URI = "data:image/png;base64,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";
@@ -75,13 +76,249 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		/** Required service: the UI slot registry. */
+		// ---------------------------------------------------------------- themes
+		//
+		// The design system ships five themes. Two ride the app's own
+		// Light/Dark/System preference — the host stylesheet maps Light to the
+		// DS default and Dark to "escuro" — and the other three are registered
+		// here as extra themes of the `theme` service. Their colours come from
+		// the same host stylesheet, keyed off `html[data-compliance-theme]`, so
+		// the registrations carry no tokens of their own: they exist for the
+		// colour scheme and for the preference.
+		//
+		// ui-theme persists only its built-in preferences, so the chosen extra
+		// theme is kept here, in localStorage, together with the built-in
+		// preference it was chosen over (`base`). The host's pre-paint script
+		// reads the same key, so a reload opens on the right palette.
+
+		/** Theme list and storage key, published by the node half. */
+		const BRAND = (typeof window !== "undefined" && window.__COMPLIANCE_BRAND__) || { themes: [], storageKey: "compliance-brand.theme" };
+		const EXTRA_THEMES = BRAND.themes.filter((theme) => !theme.builtin);
+		const DEFAULT_THEME = BRAND.themes.find((theme) => theme.id === "padrao");
+		const isExtra = (id) => EXTRA_THEMES.some((theme) => theme.id === id);
+
+		/** Read the saved choice; a blocked localStorage throws rather than returning null. */
+		function readSaved() {
+			try {
+				const saved = JSON.parse(localStorage.getItem(BRAND.storageKey) || "null");
+				return saved !== null && isExtra(saved.theme) ? saved : undefined;
+			} catch {
+				return undefined;
+			}
+		}
+
+		/** Persist (or clear, with undefined) the choice. */
+		function writeSaved(saved) {
+			try {
+				if (saved === undefined) localStorage.removeItem(BRAND.storageKey);
+				else localStorage.setItem(BRAND.storageKey, JSON.stringify(saved));
+			} catch {
+				// Storage unavailable: the choice lasts for this page only.
+			}
+		}
+
+		/** Put the palette attribute the host stylesheet keys the extra themes off. */
+		function applyAttribute(id) {
+			const root = document.documentElement;
+			if (id === undefined) delete root.dataset.complianceTheme;
+			else root.dataset.complianceTheme = id;
+		}
+
+		/** The picker's state: "padrao" or an extra theme id, observable for React. */
+		const selection = {
+			value: "padrao",
+			listeners: new Set(),
+			set(value) {
+				if (value === this.value) return;
+				this.value = value;
+				for (const listener of this.listeners) listener();
+			},
+			subscribe: (listener) => {
+				selection.listeners.add(listener);
+				return () => { selection.listeners.delete(listener); };
+			},
+			get: () => selection.value,
+		};
+
+		/** Where the picker's clicks go; bound once the theme service arrives. */
+		let choose = () => {};
+
+		/** One swatch tile: the theme's page, card and primary, as the DS resolves them. */
+		function Swatch({ swatch }) {
+			const colors = swatch || {};
+			return jsxs("span", {
+				"aria-hidden": "true",
+				style: {
+					display: "flex",
+					gap: "4px",
+					padding: "6px",
+					borderRadius: "var(--radius-lg, 8px)",
+					background: colors.background,
+					border: "1px solid var(--dsw-alias-border-l2)",
+				},
+				children: [
+					jsx("span", { style: { width: "18px", height: "18px", borderRadius: "var(--radius-sm, 6px)", background: colors.card, border: "1px solid var(--dsw-alias-border-l1)" } }),
+					jsx("span", { style: { width: "18px", height: "18px", borderRadius: "var(--radius-sm, 6px)", background: colors.primary } }),
+					jsx("span", { style: { width: "18px", height: "18px", borderRadius: "var(--radius-sm, 6px)", background: colors.accent } }),
+				],
+			});
+		}
+
+		/**
+		 * General-settings row: the brand palette. "Padrão" hands the choice back
+		 * to the Appearance row above it (Light = Padrão, Dark = Escuro).
+		 */
+		function BrandThemeRow() {
+			const current = react.useSyncExternalStore(selection.subscribe, selection.get, selection.get);
+			const options = [
+				{ id: "padrao", label: "Padrão", hint: "Segue a Aparência", swatch: DEFAULT_THEME && DEFAULT_THEME.swatch },
+				...EXTRA_THEMES.map((theme) => ({ id: theme.id, label: theme.label, hint: theme.colorScheme === "dark" ? "Escuro" : "Claro", swatch: theme.swatch })),
+			];
+			return jsxs("div", {
+				style: {
+					display: "flex",
+					flexDirection: "column",
+					gap: "8px",
+					padding: "16px 0",
+					borderBottom: "0.5px solid var(--dsw-alias-border-l2)",
+				},
+				children: [
+					jsx("div", { style: { fontSize: "14px", lineHeight: "22px", color: "var(--dsw-alias-label-primary)" }, children: "Tema da marca" }),
+					jsx("div", {
+						role: "radiogroup",
+						"aria-label": "Tema da marca",
+						style: { display: "flex", flexWrap: "wrap", gap: "8px" },
+						children: options.map((option) => {
+							const selected = option.id === current;
+							return jsxs("button", {
+								type: "button",
+								role: "radio",
+								"aria-checked": selected,
+								onClick: () => { choose(option.id); },
+								style: {
+									flex: "1 1 140px",
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "flex-start",
+									gap: "8px",
+									padding: "12px",
+									borderRadius: "var(--radius-xl, 12px)",
+									border: selected ? "1px solid var(--primary)" : "1px solid var(--dsw-alias-border-l2)",
+									background: selected ? "var(--dsw-alias-interactive-bg-hover)" : "transparent",
+									color: "var(--dsw-alias-label-primary)",
+									cursor: "pointer",
+									font: "inherit",
+									textAlign: "left",
+								},
+								children: [
+									jsx(Swatch, { swatch: option.swatch }),
+									jsxs("span", {
+										style: { display: "flex", flexDirection: "column" },
+										children: [
+											jsx("span", { style: { fontSize: "13px", fontWeight: 600 }, children: option.label }),
+											jsx("span", { style: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary)" }, children: option.hint }),
+										],
+									}),
+								],
+							});
+						}),
+					}),
+				],
+			});
+		}
+
+		/**
+		 * Register the extra themes, keep the palette attribute and the saved
+		 * choice in step with the theme service, and offer the picker.
+		 * @param scoped - context scoped to the theme service's presence.
+		 */
+		function mountThemes(scoped) {
+			const theme = scoped.get("theme");
+			for (const extra of EXTRA_THEMES) {
+				scoped.effect(
+					() => theme.register({ id: extra.id, colorScheme: extra.colorScheme, tokens: {} }),
+					`compliance-brand: ${extra.id} theme`,
+				);
+			}
+
+			let saved = readSaved();
+			/** Boot window during which a returning base preference is ui-theme's own adoption. */
+			const adoptUntil = Date.now() + 5000;
+
+			choose = (id) => {
+				const preference = theme.getTheme().preference;
+				if (id === "padrao") {
+					const base = saved === undefined ? preference : saved.base;
+					saved = undefined;
+					writeSaved(undefined);
+					theme.setTheme(isExtra(base) || base === undefined ? "system" : base);
+					return;
+				}
+				if (!isExtra(id)) return;
+				saved = { theme: id, base: saved !== undefined ? saved.base : isExtra(preference) ? "system" : preference };
+				writeSaved(saved);
+				theme.setTheme(id);
+			};
+
+			const sync = (snapshot) => {
+				const preference = snapshot.preference;
+				if (isExtra(preference)) {
+					applyAttribute(preference);
+					selection.set(preference);
+					return;
+				}
+				if (saved !== undefined && preference === saved.base && Date.now() < adoptUntil) {
+					// The built-in preference the extra theme was picked over came
+					// back, during boot, without a pick in this row — ui-theme
+					// adopting its own persisted value. Re-assert the extra theme.
+					const wanted = saved.theme;
+					queueMicrotask(() => {
+						if (saved !== undefined && saved.theme === wanted && theme.getTheme().preference !== wanted) theme.setTheme(wanted);
+					});
+					return;
+				}
+				// Any other built-in preference is a pick in the Appearance row:
+				// the brand palette steps back to the default.
+				saved = undefined;
+				writeSaved(undefined);
+				applyAttribute(undefined);
+				selection.set("padrao");
+			};
+
+			if (saved !== undefined) {
+				try {
+					theme.setTheme(saved.theme);
+				} catch {
+					saved = undefined;
+					writeSaved(undefined);
+				}
+			}
+			scoped.on("theme/change", sync);
+			sync(theme.getTheme());
+
+			scoped.effect(() => () => {
+				choose = () => {};
+				applyAttribute(undefined);
+				selection.set("padrao");
+			}, "compliance-brand: palette attribute");
+
+			if (EXTRA_THEMES.length > 0) {
+				scoped.slots.inject("settings.general.item", () => scoped.slots.register({
+					name: "settings.general.item",
+					id: "compliance-theme",
+					order: 12,
+				}, BrandThemeRow));
+			}
+		}
+
+		/** Required service: the UI slot registry. `theme` is read optionally. */
 		const inject = ["slots"];
 
 		/**
 		 * Fill every brand slot as one declaration-aware registration set, so the
 		 * package works whether it activates before or after the declarers and
-		 * withdraws every occupant together.
+		 * withdraws every occupant together. Then, once the theme service is
+		 * there, the design system's extra themes.
 		 */
 		function apply(ctx) {
 			ctx.slots.inject("sidebar.brand.mark", () =>
@@ -91,6 +328,10 @@ window.__ModuleLoader__.load({
 						yield ctx.slots.register({ name: "sidebar.brand.name" }, ComplianceBrandName);
 						yield ctx.slots.register({ name: "conversation.hero.brand.mark" }, ComplianceBrandMark);
 					})));
+
+			// Through inject rather than a bare ctx.get: `theme` is provided by
+			// ui-theme, and a plain read at apply could miss it.
+			ctx.inject(["theme"], mountThemes);
 		}
 
 		exports.apply = apply;

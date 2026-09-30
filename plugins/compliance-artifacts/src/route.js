@@ -119,12 +119,60 @@ export function parseArtifactPath(routePath, pathname) {
   return { sessionId, artifactId, version: Number(match[1]) }
 }
 
+/** The marker a page puts where it wants the design system's React components. */
+const COMPONENTS_MARKER = /<script\b[^>]*\btype\s*=\s*["']text\/compliance-ds["'][^>]*>\s*<\/script>/i
+
+/**
+ * Serve-time design system: put the Compliance HCM stylesheet into the page,
+ * and the React components where the page asks for them.
+ *
+ * At serve time rather than at write time, on purpose. The stored version stays
+ * exactly what the model wrote, so an `old_str` patch keeps matching; a page
+ * written before a design-system upgrade picks the upgrade up; and the model
+ * never spends output on a stylesheet it did not author. It is inline rather
+ * than a `<link>` because the frame's origin is opaque: a same-host stylesheet
+ * would need `'self'` in the CSP and a font would need CORS, while
+ * `style-src 'unsafe-inline'` and `font-src data:` are already granted.
+ *
+ * The stylesheet goes FIRST in `<head>` and inside a cascade layer (the service
+ * builds it that way), so every rule the page writes itself wins.
+ * @param html - the stored document.
+ * @param designSystem - the `complianceDesignSystem` service.
+ * @param themeId - a theme the embedder asked for, or undefined to follow the scheme.
+ * @returns the document to send.
+ */
+export function withDesignSystem(html, designSystem, themeId) {
+  const known = themeId !== undefined && designSystem.themes.some(theme => theme.id === themeId)
+  const style = `<style data-compliance-ds="${designSystem.version}">\n${designSystem.artifactStylesheet(known ? themeId : undefined)}\n</style>`
+  let out
+  const head = /<head\b[^>]*>/i.exec(html)
+  if (head !== null) {
+    const at = head.index + head[0].length
+    out = html.slice(0, at) + style + html.slice(at)
+  } else {
+    const root = /<html\b[^>]*>/i.exec(html)
+    const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
+    const at = root !== null ? root.index + root[0].length : doctype !== null ? doctype[0].length : 0
+    out = `${html.slice(0, at)}<head>${style}</head>${html.slice(at)}`
+  }
+  const script = designSystem.componentsScript()
+  if (script !== undefined && COMPONENTS_MARKER.test(out)) {
+    // A replacer function, not a string: `$&`-style patterns in the bundle
+    // must not be expanded.
+    out = out.replace(COMPONENTS_MARKER, () => `<script data-compliance-ds-components>\n${script}\n</script>`)
+  }
+  return out
+}
+
 /**
  * Build the artifact route handler.
  * @param config - the validated plugin configuration.
+ * @param designSystem - holder whose `current` is the `complianceDesignSystem`
+ *   service while one is composed; read per request, since the service can
+ *   arrive or leave after the route is mounted.
  * @returns a node http handler.
  */
-export function artifactHandler(config) {
+export function artifactHandler(config, designSystem = { current: undefined }) {
   /**
    * Serve one artifact document.
    * @param req - the request.
@@ -134,7 +182,8 @@ export function artifactHandler(config) {
   return async function handle(req, res) {
     const headers = baseHeaders(config)
 
-    const pathname = new URL(req.url, 'http://artifact.invalid').pathname
+    const url = new URL(req.url, 'http://artifact.invalid')
+    const pathname = url.pathname
     const archivePath = `${config.routePath}/${ARCHIVE_SEGMENT}`
 
     if (pathname === archivePath) {
@@ -245,6 +294,16 @@ export function artifactHandler(config) {
       res.writeHead(404, { ...headers, 'content-type': 'text/plain; charset=utf-8' })
       res.end(req.method === 'HEAD' ? undefined : 'not found')
       return
+    }
+
+    const service = config.designSystem ? designSystem.current : undefined
+    if (service !== undefined) {
+      try {
+        html = withDesignSystem(html, service, url.searchParams.get('theme') ?? undefined)
+      } catch {
+        // A broken design system must not take the page down with it: the
+        // document still works unstyled.
+      }
     }
 
     const body = Buffer.from(html, 'utf8')

@@ -1,0 +1,13 @@
+:root{
+  /* Spacing — 2px base, densest at 6/8/10/12, page rhythm at 20/24 */
+  --space-1:2px;--space-2:4px;--space-3:6px;--space-4:8px;--space-5:10px;--space-6:12px;--space-7:14px;--space-8:16px;--space-9:18px;--space-10:20px;--space-11:22px;--space-12:24px;--space-14:28px;
+
+  /* Fluid page padding and content cap used by every screen */
+  --page-padding:clamp(16px,3vw,28px);
+  --content-max:1180px;
+  --sidebar-width:240px;
+  --sidebar-width-collapsed:64px;
+  --header-height:59px;
+  --control-height:34px;      /* icon buttons in the header */
+  --breakpoint-narrow:1000px; /* below this the shell collapses */
+}

@@ -1,0 +1,41 @@
+@font-face{font-display:fallback;font-family:'Oracle Sans';font-weight:100 900;font-stretch:75% 125%;src:url('../assets/OracleBrandVF_Tb_W_WghtWdth.woff2') format('woff2')}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap');
+
+:root{
+  --font:'Inter','Segoe UI',system-ui,sans-serif;      /* UI family, every theme but Redwood */
+  --font-redwood:'Oracle Sans','Helvetica Neue',sans-serif;
+
+  /* Size ramp — every value in the product, nothing invented */
+  --text-10:10px;   /* notification count badge */
+  --text-11:11px;   /* menu section eyebrow */
+  --text-12:12px;   /* table head, meta, pills */
+  --text-13:13px;   /* secondary body, labels, small buttons */
+  --text-14:14px;   /* body / default control text */
+  --text-15:15px;   /* header title, card title in grids */
+  --text-16:16px;   /* modal title, lead paragraph */
+  --text-18:18px;   /* page subtitle, brand lockup */
+  --text-22:22px;   /* inner page H1 */
+  --text-24:24px;   /* dashboard H1 */
+  --text-26:26px;   /* KPI number */
+  --text-28:28px;   /* large KPI number */
+  --text-44:44px;   /* punch-clock display */
+
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+
+  --tracking-tight:-.03em;  /* 44px clock */
+  --tracking-h1:-.02em;     /* headings and KPI numbers */
+  --tracking-brand:-.01em;  /* brand lockup */
+  --tracking-eyebrow:.05em; /* uppercase table heads */
+  --tracking-caps:.06em;    /* uppercase menu section labels */
+  --tracking-caps-wide:.08em;
+
+  --leading-tight:1.2;
+  --leading-snug:1.4;
+  --leading-body:1.45;
+  --leading-relaxed:1.5;
+
+  --numeric-tabular:tabular-nums; /* @kind other */
+}

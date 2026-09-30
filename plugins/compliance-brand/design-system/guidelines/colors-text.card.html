@@ -1,0 +1,20 @@
+<!-- @dsCard group="Colors" viewport="700x300" name="Texto & listas" subtitle="Títulos em --heading (nunca preto) · linhas em --row-bg com trilho de estado" -->
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Texto</title><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;padding:18px;background:var(--card);font-family:var(--font);color:var(--foreground)}.g{display:flex;flex-wrap:wrap;gap:10px}.sw{border-radius:8px;border:1px solid var(--border);overflow:hidden;width:104px}.sw i{display:block;height:44px}.sw b{display:block;font-size:11px;font-weight:600;padding:6px 8px 1px}.sw s{display:block;font-size:11px;color:var(--muted-foreground);padding:0 8px 7px;text-decoration:none;font-variant-numeric:tabular-nums}</style></head><body>
+<div style="display:flex;gap:16px;align-items:flex-start">
+<div style="flex:1;min-width:260px">
+<div style="font-size:22px;font-weight:700;letter-spacing:var(--tracking-h1);color:var(--heading)">Minhas férias</div>
+<div style="font-size:14px;color:var(--muted-foreground);margin-top:4px">Saldo de 22 dias · vence em <strong style="color:var(--accent-strong)">14/03/2027</strong></div>
+<div style="font-size:14px;font-weight:600;color:var(--heading);margin-top:16px">Minhas solicitações</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--row-bg);border:1px solid var(--border-subtle);border-left:3px solid var(--rail-pending);border-radius:8px">
+<div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--row-title)">10/08/2026 – 24/08/2026</div><div style="font-size:13px;color:var(--muted-foreground)">15 dias · solicitado em 12/07/2026</div></div>
+<span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--status-warning-bg);color:var(--status-warning-fg)">Aguardando aprovação</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--row-bg);border:1px solid var(--border-subtle);border-left:3px solid var(--rail-done);border-radius:8px">
+<div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--row-title)">22/12/2025 – 31/12/2025</div><div style="font-size:13px;color:var(--muted-foreground)">10 dias · solicitado em 02/11/2025</div></div>
+<span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--status-success-bg);color:var(--status-success-fg)">Concluída</span></div>
+</div></div>
+<div class="g" style="width:224px">
+<div class="sw"><i style="background:#2b4587"></i><b>heading</b><s>#2b4587</s></div><div class="sw"><i style="background:#101a33"></i><b>foreground</b><s>#101a33</s></div><div class="sw"><i style="background:#5b6784"></i><b>muted-foreground</b><s>#5b6784</s></div><div class="sw"><i style="background:#2b4587"></i><b>row-title</b><s>#2b4587</s></div><div class="sw"><i style="background:#fbfcfe"></i><b>row-bg</b><s>#fbfcfe</s></div><div class="sw"><i style="background:#b45309"></i><b>accent-strong</b><s>#b45309</s></div>
+</div></div></body></html>

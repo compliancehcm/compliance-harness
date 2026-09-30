@@ -241,6 +241,39 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		// ── the brand theme ───────────────────────────────────────────────────
+		//
+		// compliance-brand serves every document with the Compliance HCM design
+		// system inlined. With no hint the page follows its own colour scheme,
+		// which a frame inherits from the app — enough for the app's Light and
+		// Dark. An extra brand theme (Compliance Light, Alma RH Dark, Redwood) is
+		// an attribute on <html>, so the frame URL names it and the route serves
+		// that palette. A change of theme is a new URL, hence a refetch.
+
+		/** Read the brand theme compliance-brand put on <html>, if any. */
+		function readBrandTheme() {
+			return typeof document === "undefined" ? undefined : document.documentElement.dataset.complianceTheme;
+		}
+
+		/**
+		 * The current brand theme, re-rendering when it changes.
+		 * @returns the theme id, or undefined for the scheme-following default.
+		 */
+		function useBrandTheme() {
+			const subscribe = react.useCallback((notify) => {
+				if (typeof MutationObserver !== "function") return () => {};
+				const observer = new MutationObserver(notify);
+				observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-compliance-theme"] });
+				return () => { observer.disconnect(); };
+			}, []);
+			return react.useSyncExternalStore(subscribe, readBrandTheme, () => undefined);
+		}
+
+		/** The query suffix naming the brand theme, or nothing. */
+		function themeQuery(theme) {
+			return theme === undefined ? "" : `&theme=${encodeURIComponent(theme)}`;
+		}
+
 		// ── the panel ─────────────────────────────────────────────────────────
 
 		/**
@@ -253,6 +286,7 @@ window.__ModuleLoader__.load({
 			const address = info?.tab?.navigation?.address;
 			const revision = info?.tab?.navigation?.revision ?? 0;
 			const ids = parseAddress(address);
+			const brandTheme = useBrandTheme();
 
 			if (ids === null) {
 				return jsx("div", {
@@ -265,7 +299,7 @@ window.__ModuleLoader__.load({
 			// `revision` moves on every re-open, including the one a fresh version
 			// triggers, and it is in the URL so the frame actually refetches rather
 			// than showing the version it already has.
-			const src = `${routePath}/${ids.sessionId}/${ids.artifactId}/latest?rev=${String(revision)}`;
+			const src = `${routePath}/${ids.sessionId}/${ids.artifactId}/latest?rev=${String(revision)}${themeQuery(brandTheme)}`;
 
 			return jsx("iframe", {
 				src,
@@ -438,6 +472,7 @@ window.__ModuleLoader__.load({
 			const { meta, routePath, archived, onOpen, onArchive } = props;
 			const frameHost = react.useRef(null);
 			const near = useNearViewport(frameHost);
+			const brandTheme = useBrandTheme();
 			const [width, setWidth] = react.useState(0);
 
 			// The scale is measured rather than assumed: the grid is fluid, so the
@@ -484,7 +519,7 @@ window.__ModuleLoader__.load({
 						},
 						children: near && scale > 0
 							? jsx("iframe", {
-								src: `${routePath}/${String(meta.sessionId)}/${String(meta.artifactId)}/latest?thumb=${String(meta.version ?? 1)}`,
+								src: `${routePath}/${String(meta.sessionId)}/${String(meta.artifactId)}/latest?thumb=${String(meta.version ?? 1)}${themeQuery(brandTheme)}`,
 								title: String(meta.title ?? "Artefato"),
 								tabIndex: -1,
 								"aria-hidden": "true",

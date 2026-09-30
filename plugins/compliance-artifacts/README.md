@@ -17,7 +17,7 @@ ignores at any depth.
 | `client.js` | browser | The conversation card, the right-Sidebar tab, and the gallery (sidebar entry + overlay), hand-written in the lazy CJS factory form the client module loader consumes. |
 | `src/config.js` | node | Validates the row's `config` and builds the artifact's CSP. |
 | `src/store.js` | node | The versioned directory: `<root>/<sessionId>/<artifactId>/v<N>.html`. |
-| `src/route.js` | node | Serves one document with its own CSP header. |
+| `src/route.js` | node | Serves one document with its own CSP header, with the design system inlined. |
 | `src/tool.js` | node | The two tool definitions. |
 
 ## Why the page is served from a URL
@@ -135,6 +135,57 @@ stays small however many artifacts accumulate. It cannot collide with a document
 address even for a session literally named `index`: a document address is
 exactly three segments and the index is one.
 
+## The design system is applied at serve time
+
+When `plugins/compliance-brand` is composed, it provides the
+`complianceDesignSystem` service. The route then serves every document with the
+**Compliance HCM design system** inlined as the first element of `<head>`. It
+brings:
+
+- the tokens;
+- Inter as a `data:` URI;
+- the base element styles;
+- the `.ds-*` component classes.
+
+All of it sits in `@layer compliance-ds`, so any rule the page writes itself
+wins.
+
+Why it is built this way:
+
+- **At serve time, not write time.** The stored `vN.html` stays exactly what the
+  model wrote, so an `update_artifact` `old_str` keeps matching. A page written
+  before a design-system upgrade picks the upgrade up. The model spends no
+  output on a stylesheet it did not author.
+- **Inline, not a `<link>`.** The frame's origin is opaque. A same-host
+  stylesheet would need `'self'` in the CSP, and a font would need CORS. The
+  policy already grants `style-src 'unsafe-inline'` and `font-src data:`, so the
+  CSP is unchanged.
+
+How the palette is chosen:
+
+- **No `theme` query.** The page follows its own `prefers-color-scheme`. A frame
+  inherits that from the app, so the app's Light/Dark map to the DS default and
+  "escuro".
+- **An extra brand theme.** When the user picks Compliance Light, Alma RH Dark
+  or Redwood, `compliance-brand` sets it on `<html>`. The panel and gallery
+  frames append `&theme=<id>`, and the route serves that palette. The route
+  ignores an unknown id.
+
+A page opts into the design system's React components by placing
+`<script type="text/compliance-ds" data-components></script>` after its React
+UMD scripts. The route replaces that marker with the components script
+(`window.ComplianceDS`). Without the marker, the page does not pay for the 58 KB
+script.
+
+The service is read per request. A composition without `compliance-brand`, or
+`designSystem: false`, serves the document byte-for-byte. The model's guide is
+the `compliance-design-system` skill that `compliance-brand` registers. The
+`artifacts` skill and the create tool's description both point to it.
+
+One caveat: a numbered version (`vN`) is cached `immutable`. A design-system
+upgrade therefore reaches an already-cached `vN` only on a new URL. The panel
+and gallery load `latest`, which is `no-store`.
+
 ## Configuration
 
 Every tunable is a field on the row's `config` — see
@@ -145,6 +196,9 @@ rather than a warning.
 a **deployment decision as much as a code one**: the user's browser must reach
 those hosts, so on a closed corporate network a page that loads a library breaks.
 Trim the list to what this deployment can actually reach.
+
+`designSystem` (default `true`) turns the serve-time design system on or off. It
+is a no-op without `compliance-brand`.
 
 ## Panel copy is pt-BR, on purpose
 
@@ -166,7 +220,10 @@ node plugins/compliance-artifacts/tests/browser.mjs   # real Chromium
 The smoke drives the route over a real HTTP listener — the CSP is this plugin's
 security property, and asserting it on a handler called directly would not prove
 it reaches the wire. It also materializes `client.js` through a fake module
-loader, so the card's pure readers are covered without a DOM.
+loader, so the card's pure readers are covered without a DOM. The design-system
+checks run the REAL `compliance-brand` loader (`../compliance-brand/src/design-system.js`),
+and `browser.mjs` asserts inside the sandboxed frame that the tokens, the Inter
+face, a named theme and the page-wins cascade actually take effect.
 
 Set `ARTIFACTS_CHROMIUM` to a Chromium binary when Playwright's own
 build-numbered lookup does not find one on the host.

@@ -1,0 +1,23 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Core" subtitle="Botões, badges, chips, avatares, KPI e marca" -->
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.grp{display:flex;flex-direction:column;gap:10px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const {Button,IconButton,Badge,Chip,Avatar,Card,StatCard,ProgressBar,BrandMark,Icon}=window.ComplianceHCMDesignSystem_dab0b1;
+function Demo(){return(<div className="grp">
+<div className="row"><Button>Aprovar</Button><Button variant="secondary">Rejeitar</Button><Button variant="ghost">Cancelar</Button><Button variant="link">Ver todos</Button><Button size="sm">Aprovar ajuste</Button><Button disabled>Desabilitado</Button><IconButton icon="sino" label="Notificações" count={3}/><IconButton icon="painel" label="Menu"/></div>
+<div className="row"><Badge status="Aprovada"/><Badge status="Rejeitada"/><Badge status="Aguardando aprovação"/><Badge tone="info">Férias</Badge><Badge tone="warning">Ponto</Badge><Badge tone="purple">Vaga</Badge><Badge tone="neutral">Encerrada</Badge><Chip>Mensal</Chip><Chip>CLT</Chip><Avatar name="Ana Souza"/><Avatar name="Ricardo Teixeira" size={28}/><Icon name="ferias" size={18}/><Icon name="holerite" size={18}/><Icon name="vagas" size={18}/></div>
+<div className="row" style={{alignItems:'stretch'}}>
+<StatCard style={{flex:1,minWidth:180}} variant="primary" label="Saldo de férias" value="22 dias" caption="vence em 14/03/2027 · 22 de 30 dias"><ProgressBar value={73} tone="accent" on="dark"/></StatCard>
+<StatCard style={{flex:1,minWidth:180}} label="Pendências de aprovação" value="5" caption="férias, ponto e vagas"/>
+<StatCard style={{flex:1,minWidth:180}} size="lg" label="Banco de horas" value="+ 6h 12min" tone="positive" caption="Atualizado em 27/07"/>
+<Card style={{flex:1,minWidth:200}} title="Escala de férias"><div style={{display:'flex',alignItems:'center',gap:12,fontSize:14}}><div style={{width:96}}>Ana Souza</div><ProgressBar value={32} offset={30}/></div><div style={{display:'flex',alignItems:'center',gap:12,fontSize:14,marginTop:8}}><div style={{width:96}}>Pedro Ramos</div><ProgressBar value={32} offset={8}/></div></Card>
+<div style={{display:'flex',flexDirection:'column',gap:12,justifyContent:'center'}}><BrandMark size="md"/><BrandMark size="sm" subtitle={null}/></div>
+</div></div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Navigation" subtitle="Sidebar, header, nav items, segmented e menus" -->
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:0;background:var(--background)}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const NS=window.ComplianceHCMDesignSystem_dab0b1;
+const {Sidebar,AppHeader,NavItem,SegmentedControl,MenuSection,MenuItem,PageHeader,Avatar,Button,Card}=NS;
+const nav=[{key:'dash',icon:'dash',label:'Início',badge:5},{key:'ponto',icon:'ponto',label:'Meu ponto'},{key:'holerite',icon:'holerite',label:'Holerites'},{key:'ferias',icon:'ferias',label:'Minhas férias'},{key:'vagas',icon:'vagas',label:'Vagas internas'}];
+function Demo(){const[k,setK]=React.useState('dash');const[p,setP]=React.useState('funcionario');
+return(<div style={{display:'flex',height:420,overflow:'hidden'}}>
+<Sidebar items={nav} activeKey={k} onSelect={setK} user={{name:'Mariana Alves',role:'Analista de Marketing Pl'}}/>
+<Sidebar collapsed items={nav} activeKey={k} onSelect={setK} user={{name:'Mariana Alves',role:'Analista de Marketing Pl'}}/>
+<div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
+  <AppHeader title="Visão geral" persona={p} onPersonaChange={setP} notificationCount={3} avatar={<Avatar name="Mariana Alves" size={34}/>}/>
+  <div style={{padding:16,display:'flex',flexDirection:'column',gap:12,overflow:'hidden'}}>
+    <PageHeader title="Minhas férias" subtitle="Saldo de 22 dias" action={<Button size="lg">Solicitar férias</Button>}/>
+    <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+      <div style={{display:'flex',gap:2,background:'var(--card)',border:'1px solid var(--border)',borderRadius:8,padding:4}}>
+        {nav.slice(0,3).map(n=><NavItem key={n.key} variant="top" icon={n.icon} label={n.label} active={n.key===k} onClick={()=>setK(n.key)}/>)}
+      </div>
+      <SegmentedControl value={p} onChange={setP} options={[{value:'funcionario',label:'Funcionário'},{value:'gestor',label:'Líder / Gestor'}]}/>
+    </div>
+    <Card padding={6} style={{width:220,boxShadow:'var(--shadow-popover)'}}>
+      <MenuSection label="Tema"><MenuItem label="Claro" selected/><MenuItem label="Escuro"/><MenuItem label="Compliance Light"/></MenuSection>
+      <MenuItem icon="sair" label="Sair"/>
+    </Card>
+  </div>
+</div>
+</div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

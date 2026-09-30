@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="E-mails · Criação de usuário" description="Fluxo de três e-mails transacionais: convite de acesso, definição de senha e conta ativada" -->
+<helmet><script src="./ds-base.js"></script><style>*{box-sizing:border-box}body{margin:0}</style></helmet>
+<div style="min-height:100vh;background:var(--background);color:var(--foreground);font-family:var(--font);padding:clamp(20px,3vw,40px)">
+  <header style="max-width:2020px;margin:0 auto 28px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--accent-strong)">E-mails transacionais</div>
+    <h1 style="margin:10px 0 0;font-size:26px;font-weight:700;letter-spacing:var(--tracking-h1);color:var(--heading)">Fluxo de criação de usuário</h1>
+    <p style="margin:8px 0 0;font-size:14px;color:var(--muted-foreground);max-width:760px;text-wrap:pretty">Três disparos, na ordem: convite com código de ativação, definição de senha e confirmação. Cada arquivo é HTML pronto para envio — tabelas, estilos inline, sem imagem e sem fonte externa. Abra o .html ao lado deste template para copiar o código.</p>
+  </header>
+  <div style="display:flex;gap:24px;align-items:flex-start;overflow-x:auto;padding-bottom:8px">
+    <section style="flex:0 0 640px">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:700">1</span>
+        <div style="font-size:15px;font-weight:600;color:var(--row-title)">Convite de acesso</div>
+        <code style="font-size:12px;color:var(--muted-foreground)">01-convite-acesso.html</code>
+      </div>
+      <div style="font-size:13px;color:var(--muted-foreground);margin-bottom:12px">Assunto: Sua conta no Portal do Trabalhador foi criada</div>
+      <iframe src="./01-convite-acesso.html" title="Convite de acesso" style="width:640px;height:1000px;border:1px solid var(--border);border-radius:12px;background:var(--card)"></iframe>
+    </section>
+    <section style="flex:0 0 640px">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:700">2</span>
+        <div style="font-size:15px;font-weight:600;color:var(--row-title)">Definição de senha</div>
+        <code style="font-size:12px;color:var(--muted-foreground)">02-definir-senha.html</code>
+      </div>
+      <div style="font-size:13px;color:var(--muted-foreground);margin-bottom:12px">Assunto: Defina a senha do seu acesso · link válido por 60 minutos</div>
+      <iframe src="./02-definir-senha.html" title="Definição de senha" style="width:640px;height:1000px;border:1px solid var(--border);border-radius:12px;background:var(--card)"></iframe>
+    </section>
+    <section style="flex:0 0 640px">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:700">3</span>
+        <div style="font-size:15px;font-weight:600;color:var(--row-title)">Conta ativada</div>
+        <code style="font-size:12px;color:var(--muted-foreground)">03-conta-ativada.html</code>
+      </div>
+      <div style="font-size:13px;color:var(--muted-foreground);margin-bottom:12px">Assunto: Conta ativada · seu acesso está liberado</div>
+      <iframe src="./03-conta-ativada.html" title="Conta ativada" style="width:640px;height:1000px;border:1px solid var(--border);border-radius:12px;background:var(--card)"></iframe>
+    </section>
+  </div>
+  <section style="max-width:2020px;margin:28px auto 0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Regras do padrão</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:14px;font-size:14px;color:var(--secondary-foreground);line-height:1.5">
+      <div><strong style="color:var(--foreground)">Largura</strong><br>Corpo de 600px centrado sobre #f4f6fb, cartão branco com borda #e0e5f0 e raio 12px.</div>
+      <div><strong style="color:var(--foreground)">Cabeçalho</strong><br>Faixa #2b4587 com o lockup C + Compliance HCM e filete âmbar de 3px. Troque a letra por um logo hospedado quando houver URL pública.</div>
+      <div><strong style="color:var(--foreground)">Tipografia</strong><br>Helvetica/Arial (não há webfont em e-mail): título 23px, corpo 15px/24, meta 13px, eyebrow 11px em caixa alta.</div>
+      <div><strong style="color:var(--foreground)">Ação</strong><br>Um único botão por e-mail: td com bgcolor #2b4587, raio 8px, link em display block. Sempre acompanhado do endereço em texto.</div>
+      <div><strong style="color:var(--foreground)">Bloco de dados</strong><br>Inset #f4f6fb com borda e raio 8px para credenciais, prazos e requisitos.</div>
+      <div><strong style="color:var(--foreground)">Rodapé</strong><br>Fora do cartão: aviso de mensagem automática, endereço postal e canal do DP. Sem emoji, sem imagem.</div>
+    </div>
+  </section>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:2100,&quot;height&quot;:1300}}"></script>
+</body>
+</html>

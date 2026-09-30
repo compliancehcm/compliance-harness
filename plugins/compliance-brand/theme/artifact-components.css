@@ -1,0 +1,213 @@
+/* Compliance HCM Design System — base element styles and `.ds-*` classes for
+   artifact documents.
+
+   An artifact is model-written HTML with no build step, so the React
+   primitives in design-system/components are also offered here as plain CSS
+   classes. Every rule is a literal transcription of the matching component's
+   inline styles (Button.jsx, Badge.jsx, Card.jsx…); nothing is invented.
+   The whole sheet is served inside `@layer compliance-ds`, so any rule the page
+   writes itself, unlayered, wins. */
+
+/* ---- Base (styles.css) ------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  padding: var(--page-padding);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font);
+  font-size: var(--text-14);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { color: var(--heading); margin: 0 0 var(--space-4); line-height: var(--leading-tight); }
+h1 { font-size: var(--text-22); font-weight: var(--weight-bold); letter-spacing: var(--tracking-h1); }
+h2 { font-size: var(--text-16); font-weight: var(--weight-bold); letter-spacing: var(--tracking-h1); }
+h3 { font-size: var(--text-15); font-weight: var(--weight-semibold); }
+h4 { font-size: var(--text-14); font-weight: var(--weight-semibold); }
+p { margin: 0 0 var(--space-6); }
+small { font-size: var(--text-12); color: var(--muted-foreground); }
+a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { color: var(--secondary-foreground); }
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-10) 0; }
+input, select, textarea, button { font-family: var(--font); font-size: var(--text-14); }
+button { color: inherit; }
+input, select, textarea { background: var(--card); color: var(--foreground); }
+input::placeholder, textarea::placeholder { color: var(--muted-foreground); }
+input[type="date"] { color-scheme: light dark; }
+input[type="checkbox"], input[type="radio"], progress { accent-color: var(--primary); }
+code, kbd, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+code { background: var(--muted); border-radius: var(--radius-sm); padding: 1px 5px; }
+pre { background: var(--muted); border-radius: var(--radius-lg); padding: var(--space-6); overflow: auto; }
+pre code { background: none; padding: 0; }
+
+/* Plain tables read like DataTable: uppercase 12px head on --background,
+   14px rows divided by --muted, never wrapping. */
+table { width: 100%; border-collapse: collapse; font-size: var(--text-14); font-variant-numeric: tabular-nums; }
+th {
+  text-align: left; padding: 10px 20px; background: var(--background);
+  border-bottom: 1px solid var(--border); font-size: var(--text-12); font-weight: var(--weight-semibold);
+  color: var(--muted-foreground); text-transform: uppercase; letter-spacing: var(--tracking-eyebrow);
+  white-space: nowrap;
+}
+td { padding: 12px 20px; border-bottom: 1px solid var(--muted); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+
+
+/* ---- Layout ------------------------------------------------------------ */
+.ds-page { max-width: var(--content-max); margin: 0 auto; animation: fadeIn var(--duration-base) var(--easing); }
+.ds-grid { display: grid; gap: var(--space-10); grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.ds-grid--kpi { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.ds-stack { display: flex; flex-direction: column; gap: var(--space-6); }
+.ds-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+
+/* ---- PageHeader -------------------------------------------------------- */
+.ds-page-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.ds-page-header h1 { margin: 0; font-size: var(--text-22); font-weight: var(--weight-bold); letter-spacing: var(--tracking-h1); color: var(--heading); }
+.ds-page-header--dash { margin-bottom: 24px; }
+.ds-page-header--dash h1 { font-size: var(--text-24); }
+.ds-subtitle { font-size: var(--text-18); color: var(--muted-foreground); margin-top: 6px; line-height: var(--leading-snug); font-weight: 400; }
+.ds-page-header--dash .ds-subtitle { font-size: var(--text-14); margin-top: 4px; }
+
+/* ---- Typography helpers ------------------------------------------------ */
+.ds-eyebrow { font-size: var(--text-12); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-eyebrow); color: var(--muted-foreground); }
+.ds-muted { color: var(--muted-foreground); }
+.ds-meta { font-size: var(--text-12); color: var(--muted-foreground); }
+.ds-num { font-variant-numeric: tabular-nums; }
+.ds-positive { color: var(--success); }
+.ds-negative { color: var(--danger); }
+
+/* ---- Card -------------------------------------------------------------- */
+.ds-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 20px; }
+.ds-card--hero { padding: 24px; background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.ds-card--hero .ds-muted, .ds-card--hero .ds-meta { color: var(--primary-muted-foreground); }
+.ds-card__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+.ds-card__title { font-size: var(--text-14); font-weight: var(--weight-semibold); color: var(--heading); }
+.ds-card--hero .ds-card__title { color: var(--primary-foreground); }
+.ds-list > * + * { border-top: 1px solid var(--muted); }
+.ds-list > * { padding: 10px 0; }
+.ds-list-item { border: 1px solid var(--muted); border-radius: var(--radius-lg); padding: 10px 12px; background: var(--row-bg); }
+
+/* ---- StatCard ---------------------------------------------------------- */
+.ds-stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 16px; }
+.ds-stat__label { font-size: var(--text-13); color: var(--muted-foreground); font-weight: var(--weight-medium); }
+.ds-stat__value { font-size: var(--text-26); font-weight: var(--weight-bold); letter-spacing: var(--tracking-h1); margin-top: 4px; color: var(--heading); font-variant-numeric: tabular-nums; }
+.ds-stat__value small { font-size: var(--text-14); color: var(--muted-foreground); font-weight: var(--weight-medium); }
+.ds-stat__caption { font-size: var(--text-12); color: var(--muted-foreground); margin-top: 2px; }
+.ds-stat--lg { padding: 20px; }
+.ds-stat--lg .ds-stat__label { font-size: var(--text-14); }
+.ds-stat--lg .ds-stat__value { font-size: var(--text-28); }
+.ds-stat--lg .ds-stat__caption { font-size: var(--text-13); }
+.ds-stat--positive .ds-stat__value { color: var(--success); }
+.ds-stat--negative .ds-stat__value { color: var(--danger); }
+.ds-stat--primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.ds-stat--primary .ds-stat__label { color: var(--primary-foreground); font-weight: var(--weight-semibold); }
+.ds-stat--primary .ds-stat__value { color: var(--primary-foreground); }
+.ds-stat--primary .ds-stat__caption, .ds-stat--primary .ds-stat__value small { color: var(--primary-muted-foreground); }
+
+/* ---- Button / IconButton ----------------------------------------------- */
+.ds-btn {
+  border: none; border-radius: var(--radius-lg); font-weight: var(--weight-semibold); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+  font-family: var(--font); padding: 8px 16px; font-size: var(--text-14);
+  background: var(--primary); color: var(--primary-foreground); text-decoration: none;
+}
+.ds-btn:hover { background: var(--primary-hover); color: var(--primary-foreground); }
+.ds-btn--sm { padding: 6px 12px; font-size: var(--text-13); font-weight: var(--weight-medium); }
+.ds-btn--lg { padding: 10px 18px; }
+.ds-btn--block { width: 100%; }
+.ds-btn--secondary { background: var(--card); color: var(--foreground); border: 1px solid var(--border); }
+.ds-btn--secondary:hover { background: var(--muted); color: var(--foreground); }
+.ds-btn--ghost { background: transparent; color: var(--secondary-foreground); }
+.ds-btn--ghost:hover { background: var(--muted); color: var(--secondary-foreground); }
+.ds-btn--on-primary { background: var(--card); color: var(--primary); }
+.ds-btn--on-primary:hover { background: var(--border); color: var(--primary); }
+.ds-btn--link { background: none; padding: 0; color: var(--primary); font-weight: var(--weight-medium); text-decoration: underline; text-underline-offset: 2px; }
+.ds-btn--link:hover { background: none; color: var(--secondary-foreground); }
+.ds-btn:disabled, .ds-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.ds-icon-btn {
+  width: var(--control-height); height: var(--control-height); display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); color: var(--header-icon); cursor: pointer; position: relative;
+}
+.ds-icon-btn:hover { background: var(--header-icon-hover-bg); color: var(--foreground); }
+
+/* ---- Badge / Chip / Avatar / Dot --------------------------------------- */
+/* A tone modifier also works alone (`class="ds-badge--success"`). */
+.ds-badge, [class^="ds-badge--"], [class*=" ds-badge--"] { display: inline-block; border-radius: var(--radius-pill); padding: 3px 10px; font-size: var(--text-12); font-weight: var(--weight-semibold); white-space: nowrap; background: var(--status-warning-bg); color: var(--status-warning-fg); }
+.ds-badge--success { background: var(--status-success-bg); color: var(--status-success-fg); }
+.ds-badge--danger { background: var(--status-danger-bg); color: var(--status-danger-fg); }
+.ds-badge--warning { background: var(--status-warning-bg); color: var(--status-warning-fg); }
+.ds-badge--info { background: var(--status-info-bg); color: var(--status-info-fg); }
+.ds-badge--purple { background: var(--status-purple-bg); color: var(--status-purple-fg); }
+.ds-badge--neutral { background: var(--muted); color: var(--secondary-foreground); }
+.ds-chip { display: inline-block; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 2px 10px; font-size: var(--text-12); font-weight: var(--weight-medium); color: var(--secondary-foreground); white-space: nowrap; }
+.ds-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-13); font-weight: var(--weight-semibold); background: var(--muted); color: var(--secondary-foreground); }
+.ds-avatar--sm { width: 28px; height: 28px; font-size: var(--text-12); }
+.ds-dot { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--muted-foreground); flex: none; }
+.ds-dot--present { background: var(--presence-present); }
+.ds-dot--remote { background: var(--presence-remote); }
+.ds-dot--absent { background: var(--presence-absent); }
+.ds-dot--vacation { background: var(--presence-vacation); }
+
+/* ---- ProgressBar ------------------------------------------------------- */
+.ds-progress { flex: 1; min-width: 120px; height: 8px; background: var(--muted); border-radius: var(--radius-pill); overflow: hidden; }
+.ds-progress > span { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--primary); }
+.ds-progress--accent > span { background: var(--accent); }
+.ds-progress--success > span { background: var(--success); }
+.ds-progress--danger > span { background: var(--danger); }
+
+/* ---- DataTable --------------------------------------------------------- */
+.ds-table { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); overflow-x: auto; }
+.ds-table table { min-width: 560px; }
+.ds-table tbody tr.ds-clickable { cursor: pointer; }
+.ds-table tbody tr.ds-clickable:hover { background: var(--background); }
+.ds-table tbody tr.ds-clickable td { padding-top: 14px; padding-bottom: 14px; }
+
+/* ---- ApprovalRow / PersonRow ------------------------------------------- */
+.ds-approval { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--row-bg); border: 1px solid var(--muted); border-radius: var(--radius-lg); }
+.ds-approval--pending { box-shadow: inset 3px 0 0 var(--rail-pending); }
+.ds-approval--done { box-shadow: inset 3px 0 0 var(--rail-done); }
+.ds-approval__title { font-size: var(--text-14); font-weight: var(--weight-semibold); color: var(--row-title); }
+.ds-approval__meta { font-size: var(--text-13); color: var(--muted-foreground); }
+.ds-approval__actions { display: flex; gap: 6px; }
+.ds-person { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+.ds-person + .ds-person { border-top: 1px solid var(--muted); }
+
+/* ---- Forms ------------------------------------------------------------- */
+.ds-field { display: flex; flex-direction: column; gap: 6px; }
+.ds-field > label, .ds-label { font-size: var(--text-13); font-weight: var(--weight-medium); }
+.ds-hint { font-size: var(--text-12); color: var(--muted-foreground); }
+.ds-input, .ds-select, .ds-textarea {
+  border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 12px; font-size: var(--text-14);
+  outline: none; width: 100%; background: var(--card); color: var(--foreground); font-family: var(--font);
+}
+.ds-select { padding: 9px 12px; cursor: pointer; }
+.ds-textarea { resize: vertical; min-height: 84px; line-height: var(--leading-relaxed); }
+.ds-input:focus, .ds-select:focus, .ds-textarea:focus { border-color: var(--primary); }
+.ds-checkbox { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-13); cursor: pointer; }
+.ds-checkbox input { accent-color: var(--primary); width: 16px; height: 16px; margin: 0; }
+
+/* ---- Segmented control ------------------------------------------------- */
+.ds-segmented { display: inline-flex; background: var(--muted); border-radius: var(--radius-lg); padding: 3px; gap: 2px; }
+.ds-segmented > button { border: none; border-radius: var(--radius-sm); padding: 6px 14px; font-size: var(--text-13); font-weight: var(--weight-medium); cursor: pointer; background: transparent; color: var(--muted-foreground); white-space: nowrap; }
+.ds-segmented > button[aria-pressed="true"], .ds-segmented > button.is-active { background: var(--card); color: var(--foreground); font-weight: var(--weight-semibold); box-shadow: var(--shadow-segment); }
+
+/* ---- Feedback ---------------------------------------------------------- */
+.ds-alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--danger-soft-bg); border: 1px solid var(--danger-soft-border); border-radius: var(--radius-lg); font-size: var(--text-13); color: var(--danger-soft-fg); }
+.ds-alert strong, .ds-alert__title { font-weight: var(--weight-semibold); color: var(--danger-soft-fg-strong); display: block; }
+.ds-notice { padding: 10px 12px; background: var(--accent-soft-bg); border: 1px solid var(--accent-soft-border); border-radius: var(--radius-lg); font-size: var(--text-13); }
+.ds-toast { position: fixed; bottom: 24px; right: 24px; background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius-menu); padding: 12px 18px; font-size: var(--text-14); font-weight: var(--weight-medium); z-index: 60; box-shadow: var(--shadow-toast); animation: fadeIn .2s ease; }
+.ds-scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
+.ds-modal { background: var(--card); border-radius: var(--radius-xl); width: 440px; max-width: 100%; max-height: 88vh; overflow: auto; animation: fadeIn .2s ease; }
+.ds-modal__head { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.ds-modal__title { font-size: var(--text-16); font-weight: var(--weight-bold); }
+.ds-modal__body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.ds-modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.ds-popover { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-menu); box-shadow: var(--shadow-popover); padding: 6px; }
+
+/* ---- Brand mark (the C tile) ------------------------------------------- */
+.ds-brand { display: inline-flex; align-items: center; gap: 10px; }
+.ds-brand__tile { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); color: var(--primary-foreground); font-weight: var(--weight-bold); font-size: var(--text-14); flex: none; }
+.ds-brand__name { font-size: var(--text-14); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+.ds-brand__sub { font-size: var(--text-12); color: var(--muted-foreground); }

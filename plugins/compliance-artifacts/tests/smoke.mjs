@@ -23,7 +23,8 @@ import { apply, inject, name } from '../index.js'
 import { resolveConfig, ArtifactsConfigError, contentSecurityPolicy } from '../src/config.js'
 import { writeVersion, readMeta, readVersion, listArtifacts, listAllArtifacts, setArchived, newArtifactId, ArtifactStoreError } from '../src/store.js'
 import { applyPatch } from '../src/tool.js'
-import { parseArtifactPath } from '../src/route.js'
+import { parseArtifactPath, withDesignSystem } from '../src/route.js'
+import { loadDesignSystem } from '../../compliance-brand/src/design-system.js'
 import { artifactsSkill } from '../src/skill.js'
 
 const results = []
@@ -53,7 +54,13 @@ await check('config applies every default', () => {
   assert.equal(resolved.routePath, '/artifacts')
   assert.equal(resolved.createToolName, 'create_artifact')
   assert.equal(resolved.updateToolName, 'update_artifact')
+  assert.equal(resolved.designSystem, true)
   assert.ok(resolved.root.length > 0)
+})
+
+await check('config rejects a designSystem that is not a boolean', () => {
+  assert.throws(() => resolveConfig({ designSystem: 'yes' }), /designSystem must be a boolean/)
+  assert.equal(resolveConfig({ designSystem: false }).designSystem, false)
 })
 
 await check('config rejects an unknown field', () => {
@@ -438,6 +445,101 @@ await check('a composition without the skill registry still gets the tools', asy
   await bare.close()
 })
 
+// ------------------------------------------------------ design system, serve time
+
+const designSystem = loadDesignSystem()
+
+await check('the design system lands first in <head>, the page itself untouched after it', () => {
+  const page = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>x</title></head><body>oi</body></html>'
+  const out = withDesignSystem(page, designSystem, undefined)
+  const at = out.indexOf('<style data-compliance-ds=')
+  assert.ok(at > 0 && at === out.indexOf('<head>') + '<head>'.length, 'right after the opening head tag')
+  assert.ok(out.includes('@layer compliance-ds'), 'inside a cascade layer, so the page wins')
+  assert.ok(out.includes("font-family:'Inter'") && out.includes('data:font/woff2;base64,'), 'Inter inline')
+  assert.ok(out.includes('--primary:#2b4587'))
+  assert.ok(out.includes('@media (prefers-color-scheme: dark)'), 'no theme: follows the scheme')
+  assert.ok(out.endsWith('<meta charset="utf-8"><title>x</title></head><body>oi</body></html>'))
+})
+
+await check('a document without <head> or <html> still gets the stylesheet', () => {
+  const bare = withDesignSystem('<!doctype html><p>oi</p>', designSystem, undefined)
+  assert.match(bare, /^<!doctype html><head><style data-compliance-ds=/)
+  const fragment = withDesignSystem('<p>oi</p>', designSystem, undefined)
+  assert.match(fragment, /^<head><style data-compliance-ds=[\s\S]*<\/head><p>oi<\/p>$/)
+  const noHead = withDesignSystem('<html><body>oi</body></html>', designSystem, undefined)
+  assert.match(noHead, /^<html><head><style data-compliance-ds=/)
+})
+
+await check('a known theme fixes the palette, an unknown one is ignored', () => {
+  const alma = withDesignSystem('<head></head>', designSystem, 'alma-dark')
+  assert.ok(alma.includes('--primary:#22c55e'))
+  assert.ok(alma.includes('color-scheme:dark'))
+  assert.ok(!alma.includes('prefers-color-scheme'))
+  const redwood = withDesignSystem('<head></head>', designSystem, 'netsuite-redwood')
+  assert.ok(redwood.includes("font-family:'Oracle Sans'"), 'Oracle Sans only under Redwood')
+  assert.ok(!alma.includes("font-family:'Oracle Sans'"))
+  const bogus = withDesignSystem('<head></head>', designSystem, '</style><script>alert(1)</script>')
+  assert.ok(bogus.includes('prefers-color-scheme'), 'an unknown theme falls back to the scheme default')
+  assert.ok(!bogus.includes('alert(1)'))
+})
+
+await check('the components marker becomes the inline React components script', () => {
+  const page = '<head></head><body><script src="react.js"></script><script type="text/compliance-ds" data-components></script></body>'
+  const out = withDesignSystem(page, designSystem, undefined)
+  assert.ok(out.includes('<script data-compliance-ds-components>'))
+  assert.ok(out.includes('window.ComplianceDS = __ds_ns'))
+  assert.ok(!out.includes('text/compliance-ds'))
+  assert.ok(out.indexOf('react.js') < out.indexOf('data-compliance-ds-components'), 'where the page put it')
+  const without = withDesignSystem('<head></head><body></body>', designSystem, undefined)
+  assert.ok(!without.includes('ComplianceDS'), 'no marker, no 58 KB script')
+})
+
+{
+  const dsRoot = mkdtempSync(join(tmpdir(), 'artifacts-ds-'))
+  const served = await createFakeCtx({ services: { complianceDesignSystem: designSystem } })
+  apply(served.ctx, { root: dsRoot })
+  const made = await served.tools.get('create_artifact').execute(
+    { title: 'Painel', html: PAGE }, { agent: { session: { id: SESSION } } })
+
+  await check('the route serves the page with the design system; the stored file stays as written', async () => {
+    const response = await fetch(`${served.origin}/artifacts/${SESSION}/${made.artifactId}/latest?theme=compliance-light`)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.ok(body.includes('<style data-compliance-ds='))
+    assert.ok(body.includes('--primary:#2e8fd5'), 'the named theme')
+    assert.equal(Number(response.headers.get('content-length')), Buffer.byteLength(body))
+    assert.equal(await readVersion(resolveConfig({ root: dsRoot }), SESSION, made.artifactId, 1), PAGE)
+  })
+
+  await check('the create tool points the model at the design-system skill', () => {
+    assert.match(served.tools.get('create_artifact').description, /compliance-design-system/)
+  })
+
+  await served.close()
+
+  const off = await createFakeCtx({ services: { complianceDesignSystem: designSystem } })
+  apply(off.ctx, { root: dsRoot, designSystem: false })
+  await check('designSystem: false serves the document exactly as written', async () => {
+    const response = await fetch(`${off.origin}/artifacts/${SESSION}/${made.artifactId}/latest`)
+    assert.equal(await response.text(), PAGE)
+    assert.doesNotMatch(off.tools.get('create_artifact').description, /compliance-design-system/)
+  })
+  await off.close()
+
+  const late = await createFakeCtx()
+  apply(late.ctx, { root: dsRoot })
+  await check('without the service the page is untouched, and a service that arrives later is picked up', async () => {
+    const before = await (await fetch(`${late.origin}/artifacts/${SESSION}/${made.artifactId}/latest`)).text()
+    assert.equal(before, PAGE)
+    late.ctx.provide('complianceDesignSystem', designSystem)
+    const after = await (await fetch(`${late.origin}/artifacts/${SESSION}/${made.artifactId}/latest`)).text()
+    assert.ok(after.includes('<style data-compliance-ds='))
+    late.disposeAll()
+  })
+  await late.close()
+  rmSync(dsRoot, { recursive: true, force: true })
+}
+
 // ----------------------------------------------------------------- client half
 
 await check('the client half registers under its package name and exports the plugin surface', () => {
@@ -453,7 +555,7 @@ await check('the client half registers under its package name and exports the pl
     const stub = { jsx: () => null, jsxs: () => null }
     const exportsOf = loaded[0].factory((specifier) => {
       if (specifier === 'react/jsx-runtime') return stub
-      if (specifier === 'react') return { useCallback: fn => fn }
+      if (specifier === 'react') return { useCallback: fn => fn, useSyncExternalStore: (_s, get) => get() }
       if (specifier === '@deepseek-ai/dsh-client-ui-primitives') {
         return { Button: () => null, IconFullscreenOutline16: () => null, IconWarningOutline16: () => null }
       }

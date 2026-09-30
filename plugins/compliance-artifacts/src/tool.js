@@ -142,7 +142,12 @@ export function createArtifactTool(ctx, config) {
       + 'a comparison the user can filter, a diagram, a small tool. The page may load React, Tailwind and '
       + 'charting libraries from the allowed CDNs, and runs sandboxed with no access to the app around it. '
       + 'You never see the result, so it must be right the first time — load the `artifacts` skill before '
-      + `the first one. To change a page you already made, call ${config.updateToolName} instead of creating a second.`,
+      + `the first one. To change a page you already made, call ${config.updateToolName} instead of creating a second.`
+      + (config.designSystem
+        ? ' Every page is served with the Compliance HCM design system already applied (tokens, Inter, `.ds-*` '
+          + 'classes): load the `compliance-design-system` skill too, and style with its `var(--…)` tokens, never '
+          + 'hard-coded colours.'
+        : ''),
     parameters: {
       type: 'object',
       properties: {
