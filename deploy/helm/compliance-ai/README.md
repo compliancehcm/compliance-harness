@@ -16,7 +16,7 @@ to the image digest the same run built and booted:
 | push to `master` | `<Chart.yaml version>-master.<run>` (prerelease) | `sha-<commit>`, by digest |
 
 ```sh
-helm show values oci://ghcr.io/compliancehcm/compliance-harness/charts/compliance-ai --version 1.2.3
+helm show values oci://ghcr.io/compliancehcm/charts/compliance-ai --version 1.2.3
 ```
 
 A `master` chart is a prerelease, so name its version explicitly (the run
@@ -38,7 +38,7 @@ kubectl -n compliance-ai create secret generic compliance-ai-secrets \
   --from-literal=SSO_CLIENT_SECRET=...
 
 helm upgrade --install compliance-ai \
-  oci://ghcr.io/compliancehcm/compliance-harness/charts/compliance-ai \
+  oci://ghcr.io/compliancehcm/charts/compliance-ai \
   --version 1.2.3 -n compliance-ai -f my-values.yaml
 helm -n compliance-ai test compliance-ai
 ```

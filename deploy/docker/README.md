@@ -88,7 +88,8 @@ The job exposes `image` and `digest` as outputs, and the run summary prints
 
 4. **Chart** — on `master` and `v*` tags only, the `chart` job packages
    `deploy/helm/compliance-ai` with that digest written into its values and
-   pushes it to `oci://ghcr.io/<owner>/<repo>/charts/compliance-ai`.
+   pushes it to `oci://ghcr.io/<owner>/charts/compliance-ai`, the
+   organization's shared chart namespace.
 
 Run the smoke locally against any build:
 
