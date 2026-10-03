@@ -172,6 +172,10 @@ jobs:
   # master publishes `<Chart.yaml version>-master.<run number>` over
   # `sha-<commit>`, a prerelease that `helm install` only picks with `--devel`
   # or an explicit `--version`.
+  #
+  # Path: the organization's shared `ghcr.io/<owner>/charts/<chart>` namespace
+  # (beside e.g. charts/comvertflow), not under this repository's name, so a
+  # cluster pulls every company chart with one registry login.
   chart:
     name: publish helm chart
     needs: image
@@ -204,7 +208,7 @@ jobs:
           {
             echo "version=$version"
             echo "app_version=$app_version"
-            echo "registry=oci://ghcr.io/${GITHUB_REPOSITORY,,}/charts"
+            echo "registry=oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
           } >> "$GITHUB_OUTPUT"
 
       - name: Package
