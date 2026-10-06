@@ -53,6 +53,14 @@ SSO_REQUIRE_CLAIM_PATH=${SSO_REQUIRE_CLAIM_PATH:-resource_access.${SSO_CLIENT_ID
 SSO_ADMIN_CLAIM_PATH=${SSO_ADMIN_CLAIM_PATH:-resource_access.${SSO_CLIENT_ID}.roles}
 SSO_REQUIRE_ROLES=${SSO_REQUIRE_ROLES-dsh-access}
 SSO_ADMIN_ROLES=${SSO_ADMIN_ROLES-dsh-admin}
+# The Keycloak Organization attribute carrying the GREMP_ID. Empty drops the
+# block, and with it the `organization` scope the plugin would otherwise add.
+SSO_GREMP_ATTRIBUTE=${SSO_GREMP_ATTRIBUTE-gremp_id}
+SSO_GREMP_REQUIRED=${SSO_GREMP_REQUIRED:-true}
+case $SSO_GREMP_REQUIRED in
+  true | false) ;;
+  *) die "SSO_GREMP_REQUIRED must be true or false, got '$SSO_GREMP_REQUIRED'" ;;
+esac
 
 # Render a comma- or space-separated list as a YAML flow sequence.
 yaml_list() {
@@ -118,6 +126,10 @@ alma_overlay=$BACKEND_RENDER_DIR/compliance-alma-mcp.overlay.yml
 YAML
   claim_block require "$SSO_REQUIRE_CLAIM_PATH" "$SSO_REQUIRE_ROLES"
   claim_block admin "$SSO_ADMIN_CLAIM_PATH" "$SSO_ADMIN_ROLES"
+  if [[ -n $SSO_GREMP_ATTRIBUTE ]]; then
+    printf '        grempId:\n          organizationAttribute: %s\n          required: %s\n' \
+      "$SSO_GREMP_ATTRIBUTE" "$SSO_GREMP_REQUIRED"
+  fi
   cat <<YAML
         sessionTtlMinutes: ${SSO_SESSION_TTL_MINUTES:-480}
         idleTimeoutMinutes: ${SSO_IDLE_TIMEOUT_MINUTES:-60}

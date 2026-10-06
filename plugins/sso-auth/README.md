@@ -47,7 +47,8 @@ face and a way out (see [Browser half](#browser-half)).
 | `src/proxy.ts` | The forwarding listener |
 | `src/gate.ts` | The decision and the `/auth/*` endpoints |
 | `src/oidc.ts` | Discovery, PKCE, code exchange, refresh, logout URL |
-| `src/claims.ts` | Payload decoding and the claim requirement |
+| `src/claims.ts` | Payload decoding, the claim requirement, and the GREMP_ID read from the `organization` claim |
+| `tests/smoke.mjs` | Config and claim rules, run with `node plugins/sso-auth/tests/smoke.mjs` |
 | `src/sessions.ts` | Opaque-id sessions, expiry, pending logins |
 | `src/pages.ts` | Server-rendered pages (the Compliance HCM design system's login layout, pt-BR) and the liveness script |
 | `assets/` | Inter and the white Compliance wordmark, inlined into those pages as `data:` URIs — the pages may reference nothing by URL |
@@ -110,6 +111,8 @@ took effect. See `../sso-auth.overlay.yml` for the annotated template.
 | `port` | no | Public bind port; default 3080. `--port` overrides it |
 | `scopes` | no | Default `openid profile email`; `openid` is always added |
 | `require` | no | `{claimPath, anyOf}`. Omit to admit any authenticated user |
+| `admin` | no | `{claimPath, anyOf}`. Omit to make nobody an administrator |
+| `grempId` | no | `{organizationAttribute, required}`: read the GREMP_ID from the user's Keycloak Organization. `organizationAttribute` defaults to `gremp_id`, `required` to `true`. Adds the `organization` scope. Omit to not read a GREMP_ID |
 | `sessionTtlMinutes` | no | Absolute session lifetime, default 480 |
 | `idleTimeoutMinutes` | no | Idle lifetime, default 60 |
 
@@ -170,7 +173,7 @@ direction: the surface closes rather than opens.
 | `/auth/login` | Interstitial; `?go=1` redirects to the provider |
 | `/auth/callback` | Code exchange, claim check, session cookie |
 | `/auth/logout` | Drops the session, then RP-initiated provider logout |
-| `/auth/status` | `{authenticated, subject, name}`; the liveness poll reads it |
+| `/auth/status` | `{authenticated, subject, name, email, grempId, organization, admin}`; the liveness poll reads it |
 
 ## Design notes worth knowing before changing this
 
@@ -213,6 +216,28 @@ value sat. Identity
 still comes from the id_token alone. A denial names both tokens and what each
 held, because "the claim is absent" and "it holds the wrong value" need different
 fixes.
+
+**The GREMP_ID comes from the Keycloak Organization.** With `grempId` set, the
+gate requests the `organization` scope (unless `scopes` already names one of
+its spellings — `organization`, `organization:*`, `organization:<alias>`, which
+may not be mixed and are refused at load if they are) and reads
+`organization.<alias>.<organizationAttribute>` from the id_token, then the
+access token. Keycloak needs two things for that claim to carry the value: the
+realm's built-in `organization` client scope assigned to the client, and its
+*Organization Membership* mapper with **Add organization attributes** on.
+Without the latter the claim is only a list of aliases, and the denial says so.
+
+The plain `organization` scope is the one added because it makes Keycloak ask a
+member of several organizations which one they are signing in as, so the token
+names exactly one. Under `organization:*` a user whose organizations disagree
+on the GREMP_ID is refused rather than assigned one of them. The attribute is
+multivalued in Keycloak (`["42"]`); a single value is accepted, several are
+not. With `required: true` a login without a resolvable GREMP_ID is denied;
+with `false` it is admitted with none and a warning is logged.
+
+The value is fixed for the session, like administrative standing: moving a user
+to another organization takes effect on their next login. It is exposed as
+`grempId` and `organization` on `/auth/status`.
 
 Note for Keycloak specifically: a **client** role lives at
 `resource_access.<clientId>.roles`, a **realm** role at `realm_access.roles`.

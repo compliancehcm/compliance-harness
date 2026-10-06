@@ -181,6 +181,8 @@ Optional, with the image's defaults:
 | `SSO_REQUIRE_ROLES` | `dsh-access` | Any one admits. **Empty admits every authenticated user** |
 | `SSO_ADMIN_CLAIM_PATH` | `resource_access.<clientId>.roles` | Claim holding admin roles |
 | `SSO_ADMIN_ROLES` | `dsh-admin` | Any one grants the configuration plane. Empty means nobody is an administrator |
+| `SSO_GREMP_ATTRIBUTE` | `gremp_id` | Keycloak Organization attribute holding the GREMP_ID; the gate adds the `organization` scope to read it. **Empty turns the lookup off** |
+| `SSO_GREMP_REQUIRED` | `true` | `true` denies a login without a resolvable GREMP_ID; `false` admits it without one |
 | `SSO_SESSION_TTL_MINUTES` / `SSO_IDLE_TIMEOUT_MINUTES` | `480` / `60` | Session lifetimes |
 | `COMPLIANCE_USERS_ROOT` | `/var/lib/compliance-ai/users` | One directory per user; the volume |
 | `COMPLIANCE_CONFINEMENT` | `bwrap` | `bwrap` or `none` |

@@ -24,6 +24,9 @@ data:
   SSO_ADMIN_CLAIM_PATH: {{ . | quote }}
   {{- end }}
   SSO_ADMIN_ROLES: {{ .Values.sso.adminRoles | quote }}
+  # Always set: empty is the image's spelling for "do not read a GREMP_ID".
+  SSO_GREMP_ATTRIBUTE: {{ .Values.sso.grempAttribute | quote }}
+  SSO_GREMP_REQUIRED: {{ .Values.sso.grempRequired | quote }}
   SSO_SESSION_TTL_MINUTES: {{ .Values.sso.sessionTtlMinutes | quote }}
   SSO_IDLE_TIMEOUT_MINUTES: {{ .Values.sso.idleTimeoutMinutes | quote }}
   COMPLIANCE_TENANCY: {{ ternary "on" "off" .Values.tenancy.enabled | quote }}
