@@ -19,6 +19,26 @@ export interface ClaimRequirement {
   readonly anyOf: readonly string[]
 }
 
+/**
+ * Where the user's GREMP_ID (Grupo de Empresas) comes from: an attribute of the
+ * Keycloak Organization the user signed in as a member of.
+ *
+ * Keycloak maps organization membership into the `organization` claim only when
+ * the `organization` scope is requested, and carries the organization's
+ * attributes in it only when the scope's *Organization Membership* mapper has
+ * *Add organization attributes* enabled.
+ */
+export interface GrempIdSource {
+  /** Name of the organization attribute holding the GREMP_ID, e.g. `gremp_id`. */
+  readonly organizationAttribute: string
+  /**
+   * Whether a login without a resolvable GREMP_ID is refused. A user outside
+   * every organization, or in several with different values, is then denied
+   * instead of entering with no tenant.
+   */
+  readonly required: boolean
+}
+
 /** Validated plugin configuration. */
 export interface SsoConfig {
   /** OIDC issuer, e.g. `https://keycloak.example/realms/dsh`. Discovery hangs off it. */
@@ -36,7 +56,10 @@ export interface SsoConfig {
   readonly host: string
   /** Public listen port. */
   readonly port: number
-  /** Scopes requested; `openid` is always included. */
+  /**
+   * Scopes requested; `openid` is always included, and `organization` too when
+   * {@link SsoConfig.grempId} is set and no organization scope was written.
+   */
   readonly scopes: readonly string[]
   /** Claim requirement, or absent to admit any authenticated user. */
   readonly require?: ClaimRequirement
@@ -46,6 +69,8 @@ export interface SsoConfig {
    * refused for everyone rather than open to everyone.
    */
   readonly admin?: ClaimRequirement
+  /** Where the GREMP_ID comes from, or absent to not resolve one. */
+  readonly grempId?: GrempIdSource
   /** Absolute session lifetime, after which re-authentication is required. */
   readonly sessionTtlMs: number
   /** Idle lifetime, after which an untouched session is dropped. */
@@ -136,10 +161,53 @@ function readRequirement(
   return { claimPath, anyOf: anyOf as readonly string[] }
 }
 
+/** The organization attribute read when `grempId` names none. */
+const DEFAULT_GREMP_ATTRIBUTE = 'gremp_id'
+
+/** Every field the `grempId` block understands. */
+const KNOWN_GREMP_FIELDS: ReadonlySet<string> = new Set(['organizationAttribute', 'required'])
+
+/** Read the optional `grempId` block. */
+function readGrempId(raw: Record<string, unknown>, problems: string[]): GrempIdSource | undefined {
+  const value = raw['grempId']
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    problems.push('grempId must be an object with organizationAttribute and required')
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  for (const key of Object.keys(record)) {
+    if (!KNOWN_GREMP_FIELDS.has(key)) problems.push(`unknown field grempId.${key}`)
+  }
+  let organizationAttribute = DEFAULT_GREMP_ATTRIBUTE
+  if (record['organizationAttribute'] !== undefined) {
+    organizationAttribute = requireString(record, 'organizationAttribute', problems)
+  }
+  const requiredRaw = record['required']
+  if (requiredRaw !== undefined && typeof requiredRaw !== 'boolean') {
+    problems.push('grempId.required must be true or false')
+  }
+  // Absent means required: writing the block says the tenant matters, and a
+  // session without one is the failure that has to be loud.
+  return { organizationAttribute, required: requiredRaw !== false }
+}
+
+/**
+ * Keycloak's three spellings of the organization scope. They may not be mixed —
+ * Keycloak rejects the authorization request — so mixing them is refused here,
+ * at load, rather than as an opaque `invalid_scope` on every login.
+ */
+function organizationScopeKind(scope: string): 'single' | 'all' | 'alias' | undefined {
+  if (scope === 'organization') return 'single'
+  if (scope === 'organization:*') return 'all'
+  if (scope.startsWith('organization:') && scope.length > 'organization:'.length) return 'alias'
+  return undefined
+}
+
 /** Every field this plugin understands; anything else is a rejection. */
 const KNOWN_FIELDS: ReadonlySet<string> = new Set([
   'issuer', 'clientId', 'clientSecretEnv', 'publicUrl', 'host', 'port',
-  'scopes', 'require', 'admin', 'sessionTtlMinutes', 'idleTimeoutMinutes',
+  'scopes', 'require', 'admin', 'grempId', 'sessionTtlMinutes', 'idleTimeoutMinutes',
 ])
 
 /**
@@ -202,6 +270,18 @@ export function resolveConfig(input: unknown): SsoConfig {
 
   const requirement = readRequirement(raw, 'require', problems)
   const adminRequirement = readRequirement(raw, 'admin', problems)
+  const grempId = readGrempId(raw, problems)
+
+  const organizationKinds = new Set(scopes.map(organizationScopeKind).filter(kind => kind !== undefined))
+  if (organizationKinds.size > 1) {
+    problems.push(
+      'scopes mixes organization scope formats (organization, organization:*, organization:<alias>), '
+      + 'which Keycloak rejects; keep one',
+    )
+  }
+  // The plain scope, not `organization:*`: a member of several organizations is
+  // then asked to pick one at login, which is what makes the GREMP_ID single.
+  if (grempId !== undefined && organizationKinds.size === 0) scopes = [...scopes, 'organization']
   const sessionTtlMs = readMinutes(raw, 'sessionTtlMinutes', DEFAULTS.sessionTtlMinutes, problems)
   const idleTimeoutMs = readMinutes(raw, 'idleTimeoutMinutes', DEFAULTS.idleTimeoutMinutes, problems)
 
@@ -223,6 +303,7 @@ export function resolveConfig(input: unknown): SsoConfig {
     scopes,
     ...requirement !== undefined && { require: requirement },
     ...adminRequirement !== undefined && { admin: adminRequirement },
+    ...grempId !== undefined && { grempId },
     sessionTtlMs,
     idleTimeoutMs,
   }

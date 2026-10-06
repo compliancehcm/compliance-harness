@@ -9,7 +9,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readCookie, sessionCookie, SESSION_COOKIE } from './edge.ts'
-import { checkClaimsAcross, decodeClaims, toPrincipal } from './claims.ts'
+import { checkClaimsAcross, decodeClaims, resolveGrempId, toPrincipal } from './claims.ts'
 import { redirectUri } from './config.ts'
 import type { SsoConfig } from './config.ts'
 import {
@@ -280,7 +280,7 @@ export class SsoGate implements ProxyGate {
       sendHtml(res, 400, errorPage('A resposta do login não corresponde a esta tentativa. Comece de novo.'))
       return true
     }
-    const principal = toPrincipal(claims)
+    let principal = toPrincipal(claims)
     if (principal === undefined) {
       sendHtml(res, 502, errorPage('O id_token não traz um subject, então não é possível identificar o usuário.'))
       return true
@@ -299,6 +299,22 @@ export class SsoGate implements ProxyGate {
       return true
     }
 
+    // The GREMP_ID comes from the Keycloak Organization the user signed in as a
+    // member of, and is fixed for the session like administrative standing.
+    const grempSource = this.deps.config.grempId
+    if (grempSource !== undefined) {
+      const gremp = resolveGrempId(sources, grempSource.organizationAttribute)
+      if (gremp.ok) {
+        principal = { ...principal, grempId: gremp.grempId, organization: gremp.organization }
+      } else if (grempSource.required) {
+        this.deps.logger.info(`sso-auth: denied ${principal.subject}: ${gremp.reason}`)
+        sendHtml(res, 403, deniedPage(gremp.reason))
+        return true
+      } else {
+        this.deps.logger.warn(`sso-auth: ${principal.email ?? principal.subject} signed in with ${gremp.reason}`)
+      }
+    }
+
     // Administrative standing is decided here, once, against the tokens this
     // login produced. An absent `admin` requirement makes nobody an
     // administrator, which is the safe direction to fail.
@@ -312,7 +328,9 @@ export class SsoGate implements ProxyGate {
       admin,
     })
     this.deps.logger.info(
-      `sso-auth: signed in ${principal.email ?? principal.subject}${admin ? ' (administrator)' : ''}`,
+      `sso-auth: signed in ${principal.email ?? principal.subject}`
+      + `${principal.grempId === undefined ? '' : ` (GREMP_ID ${principal.grempId}, organization ${principal.organization ?? '?'})`}`
+      + `${admin ? ' (administrator)' : ''}`,
     )
     res.writeHead(302, {
       location: pending.returnTo,
@@ -365,6 +383,8 @@ export class SsoGate implements ProxyGate {
         subject: found.principal.subject,
         name: found.principal.name ?? null,
         email: found.principal.email ?? null,
+        grempId: found.principal.grempId ?? null,
+        organization: found.principal.organization ?? null,
         admin: found.admin,
       }
       : { authenticated: false })

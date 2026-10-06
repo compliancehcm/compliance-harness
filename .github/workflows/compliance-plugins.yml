@@ -69,7 +69,7 @@ jobs:
         run: |
           status=0
           for plugin in compliance-alma-mcp compliance-artifacts compliance-brand compliance-echarts \
-                        compliance-pandas compliance-xlsx; do
+                        compliance-pandas compliance-xlsx sso-auth; do
             echo "::group::$plugin"
             node "plugins/$plugin/tests/smoke.mjs" || status=1
             echo "::endgroup::"

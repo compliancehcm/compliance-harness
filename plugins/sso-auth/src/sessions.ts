@@ -22,6 +22,17 @@ export interface Principal {
   readonly name?: string
   /** Email, when the issuer supplied one. */
   readonly email?: string
+  /**
+   * The GREMP_ID (Grupo de Empresas), read from the Keycloak Organization the
+   * user signed in as a member of. Absent when `grempId` is not configured, or
+   * when it is not required and none could be resolved.
+   *
+   * Like {@link Session.admin}, decided once at login: moving the user to
+   * another organization takes effect on their next login.
+   */
+  readonly grempId?: string
+  /** Alias of the organization the GREMP_ID came from. */
+  readonly organization?: string
 }
 
 /** One live session. */
