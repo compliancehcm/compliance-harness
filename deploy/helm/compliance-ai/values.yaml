@@ -37,6 +37,13 @@ sso:
   adminClaimPath: ""
   # Any one grants the configuration plane. Empty means nobody is an administrator.
   adminRoles: dsh-admin
+  # The Keycloak Organization attribute holding the user's GREMP_ID; the gate
+  # requests the `organization` scope to read it. Empty turns the lookup off.
+  # Needs the Organization Membership mapper's "Add organization attributes".
+  grempAttribute: gremp_id
+  # true denies a login without a resolvable GREMP_ID (no organization, or
+  # several with different values).
+  grempRequired: true
   sessionTtlMinutes: 480
   idleTimeoutMinutes: 60
 

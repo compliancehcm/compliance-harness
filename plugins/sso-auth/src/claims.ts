@@ -127,6 +127,113 @@ export function checkClaimsAcross(
   return { ok: false, reason: reasons.join('; ') }
 }
 
+/** The claim Keycloak's Organization Membership mapper writes. */
+export const ORGANIZATION_CLAIM = 'organization'
+
+/** The outcome of resolving the GREMP_ID. */
+export type GrempIdVerdict =
+  | {
+    readonly ok: true
+    readonly grempId: string
+    /** Alias of the organization that carried it. */
+    readonly organization: string
+    /** Which token carried it. */
+    readonly matchedIn: string
+  }
+  | { readonly ok: false; readonly reason: string }
+
+/**
+ * Read one organization attribute value as a GREMP_ID.
+ *
+ * Keycloak organization attributes are multivalued, so the value arrives as
+ * `["7"]`; a hand-written mapper may emit `"7"` or `7`. A single value in any of
+ * those shapes is accepted. Several values, or anything else, are not: it is
+ * better to refuse than to guess which client the account belongs to.
+ */
+function grempValue(raw: unknown): string | undefined {
+  const value = Array.isArray(raw) ? (raw.length === 1 ? raw[0] : undefined) : raw
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value)
+  if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  return undefined
+}
+
+/** Resolve the GREMP_ID out of one payload's `organization` claim. */
+function grempIdIn(
+  claims: TokenClaims,
+  attribute: string,
+): { readonly grempId: string; readonly organization: string } | { readonly reason: string } {
+  const claim = claims[ORGANIZATION_CLAIM]
+  if (claim === undefined) {
+    return {
+      reason: `the ${ORGANIZATION_CLAIM} claim is absent (is the organization scope granted to the client, `
+        + 'and is the user a member of an organization?)',
+    }
+  }
+  if (Array.isArray(claim)) {
+    // The mapper's default shape: aliases only, no attributes.
+    return {
+      reason: `the ${ORGANIZATION_CLAIM} claim lists only aliases (${JSON.stringify(claim)}); enable `
+        + '"Add organization attributes" on the Organization Membership mapper',
+    }
+  }
+  if (typeof claim !== 'object' || claim === null) {
+    return { reason: `the ${ORGANIZATION_CLAIM} claim holds ${JSON.stringify(claim)}` }
+  }
+
+  const found: { organization: string; grempId: string }[] = []
+  const missing: string[] = []
+  for (const [organization, details] of Object.entries(claim as Record<string, unknown>)) {
+    const raw = typeof details === 'object' && details !== null && !Array.isArray(details)
+      ? (details as Record<string, unknown>)[attribute]
+      : undefined
+    const grempId = grempValue(raw)
+    if (grempId === undefined) {
+      missing.push(raw === undefined
+        ? `organization ${JSON.stringify(organization)} has no ${attribute} attribute`
+        : `organization ${JSON.stringify(organization)} holds ${JSON.stringify(raw)} in ${attribute}`)
+    } else {
+      found.push({ organization, grempId })
+    }
+  }
+
+  const distinct = new Set(found.map(entry => entry.grempId))
+  if (distinct.size === 1) return found[0]
+  if (distinct.size > 1) {
+    // Only reachable with `organization:*` or several `organization:<alias>`
+    // scopes; the plain `organization` scope makes Keycloak ask the user to
+    // pick one organization at login.
+    return {
+      reason: `the user is in several organizations with different ${attribute} values (`
+        + `${found.map(entry => `${entry.organization}: ${entry.grempId}`).join(', ')}); `
+        + 'request the plain organization scope so Keycloak asks which one',
+    }
+  }
+  if (missing.length === 0) return { reason: `the ${ORGANIZATION_CLAIM} claim names no organization` }
+  return { reason: missing.join(', ') }
+}
+
+/**
+ * Resolve the user's GREMP_ID from Keycloak's `organization` claim.
+ *
+ * With the *Add organization attributes* option, the Organization Membership
+ * mapper writes `{"organization": {"<alias>": {"<attribute>": ["<value>"]}}}`.
+ * The claim lands in the id_token and the access_token by default; both are
+ * searched for the reason {@link checkClaimsAcross} gives, id_token first.
+ *
+ * @param sources - the tokens to search, in preference order.
+ * @param attribute - the organization attribute holding the GREMP_ID.
+ * @returns the GREMP_ID and its organization, or why none could be resolved.
+ */
+export function resolveGrempId(sources: readonly ClaimSource[], attribute: string): GrempIdVerdict {
+  const reasons: string[] = []
+  for (const source of sources) {
+    const result = grempIdIn(source.claims, attribute)
+    if ('grempId' in result) return { ok: true, ...result, matchedIn: source.label }
+    reasons.push(`${source.label}: ${result.reason}`)
+  }
+  return { ok: false, reason: `no GREMP_ID — ${reasons.join('; ')}` }
+}
+
 /**
  * Project a principal out of a payload.
  * @param claims - the decoded payload.

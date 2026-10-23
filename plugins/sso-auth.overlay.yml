@@ -63,6 +63,18 @@
           claimPath: resource_access.compliance-ai-harness.roles
           anyOf: [dsh-admin]
 
+        # ── GREMP_ID (Grupo de Empresas) ─────────────────────────────────────
+        # Read from the Keycloak Organization the user signs in as a member of:
+        # `organization.<alias>.<organizationAttribute>`. The `organization` scope
+        # is added to `scopes` automatically. In Keycloak, the realm's
+        # `organization` client scope must be assigned to the client, and its
+        # Organization Membership mapper needs "Add organization attributes" on.
+        # With `required`, a user in no organization — or in several with
+        # different values — is denied. Drop the block to not read a GREMP_ID.
+        grempId:
+          organizationAttribute: gremp_id
+          required: true
+
         # ── session lifetime ─────────────────────────────────────────────────
         sessionTtlMinutes: 480
         idleTimeoutMinutes: 60

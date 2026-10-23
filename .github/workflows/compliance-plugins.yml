@@ -69,15 +69,15 @@ jobs:
         run: |
           status=0
           for plugin in compliance-alma-mcp compliance-artifacts compliance-brand compliance-echarts \
-                        compliance-pandas compliance-xlsx; do
+                        compliance-pandas compliance-xlsx sso-auth; do
             echo "::group::$plugin"
             node "plugins/$plugin/tests/smoke.mjs" || status=1
             echo "::endgroup::"
           done
-          # The gate's sources use TypeScript parameter properties, which plain
-          # type stripping rejects; the transform mode is what loads them.
-          echo "::group::sso-auth"
-          node --experimental-transform-types plugins/sso-auth/tests/smoke.mjs || status=1
+          # The gate and the session store use TypeScript parameter properties,
+          # which plain type stripping rejects; the transform mode loads them.
+          echo "::group::sso-auth broker"
+          node --experimental-transform-types plugins/sso-auth/tests/broker.mjs || status=1
           echo "::endgroup::"
           exit "$status"
 

@@ -162,7 +162,7 @@ client through the relay — `initialize`, `tools/list`, `tools/call` — and
 exercises the token cache, the forced renewal on a 401, a session that ends and
 comes back, a burst of requests sharing one broker call, and a process with no
 broker. The gate's side (which session, when it renews, renewals deduplicated)
-is `plugins/sso-auth/tests/smoke.mjs`.
+is `plugins/sso-auth/tests/broker.mjs`.
 
 ## Model Experience
 
