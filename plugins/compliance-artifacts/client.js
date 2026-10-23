@@ -1,13 +1,19 @@
 // Artifacts in the browser: the card in the conversation, and the panel beside it.
 //
-// Two contributions:
+// Three contributions:
 //
-//   tool.call.toolview     keyed by each artifact tool's wire name — the card
-//                          that replaces the generic tool row and carries the
-//                          button that opens the panel.
-//   sidebar.right.pane.tab keyed by this plugin's tab-type id — the panel body,
-//                          which is one sandboxed iframe pointed at the host
-//                          half's route.
+//   tool.call.toolview          keyed by each artifact tool's wire name — the
+//                               card that replaces the generic tool row and
+//                               carries the button that opens the panel.
+//   conversation.chat.turnTail  the same card again at the end of the turn, for
+//                               every artifact the turn made. The tool rows fold
+//                               away once the answer lands, and the card with
+//                               them; the tail is what keeps "Abrir" in reach.
+//                               It is fed by a conversation Definition that
+//                               collects the turn's receipts from the event log.
+//   sidebar.right.pane.tab      keyed by this plugin's tab-type id — the panel
+//                               body, which is one sandboxed iframe pointed at
+//                               the host half's route.
 //
 // The card reads the RESULT's `meta`, not the call arguments. The ECharts card
 // reads `argsRaw` because its whole subject is in the arguments; here the
@@ -121,7 +127,15 @@ window.__ModuleLoader__.load({
 		function receiptOf(block) {
 			if (block === null || typeof block !== "object" || !("kind" in block)) return null;
 			if (block.isError === true) return null;
-			const meta = block.meta;
+			return receiptFromMeta(block.meta);
+		}
+
+		/**
+		 * The receipt an artifact tool's result `meta` carries.
+		 * @param meta - the result's `meta`, of unknown shape.
+		 * @returns the receipt, or null when the meta is not an artifact's.
+		 */
+		function receiptFromMeta(meta) {
 			if (meta === null || typeof meta !== "object") return null;
 			const { artifactId, sessionId, version, title } = meta;
 			if (typeof artifactId !== "string" || typeof sessionId !== "string") return null;
@@ -189,12 +203,6 @@ window.__ModuleLoader__.load({
 			const receipt = receiptOf(block);
 			const failure = failureOf(block);
 
-			const open = react.useCallback(() => {
-				if (receipt === null || openArtifact === null) return;
-				titles.set(receipt.artifactId, receipt.title);
-				openArtifact(addressOf(receipt.sessionId, receipt.artifactId));
-			}, [receipt]);
-
 			if (failure !== null) {
 				return jsxs("div", {
 					style: { ...CARD_STYLE, color: "var(--dsw-alias-state-error-primary)" },
@@ -211,6 +219,22 @@ window.__ModuleLoader__.load({
 					children: jsx("span", { children: `Gerando ${pendingTitle(block)}…` }),
 				});
 			}
+
+			return jsx(ArtifactCard, { receipt });
+		}
+
+		/**
+		 * One settled artifact: its title, its version, and the button that opens it.
+		 * @param props - `{ receipt }`, as {@link receiptOf} reads it.
+		 * @returns the card element.
+		 */
+		function ArtifactCard(props) {
+			const { receipt } = props;
+			const open = react.useCallback(() => {
+				if (openArtifact === null) return;
+				titles.set(receipt.artifactId, receipt.title);
+				openArtifact(addressOf(receipt.sessionId, receipt.artifactId));
+			}, [receipt.artifactId, receipt.sessionId, receipt.title]);
 
 			return jsxs("div", {
 				style: CARD_STYLE,
@@ -238,6 +262,82 @@ window.__ModuleLoader__.load({
 						}),
 					}),
 				],
+			});
+		}
+
+		// ── the turn's artifacts, at its end ──────────────────────────────────
+		//
+		// The conversation folds a finished turn's tool rows into "N tool calls",
+		// so the card above disappears with them. The chat's turn tail is the
+		// seat that stays open after the answer — ui-deliverables keeps its file
+		// cards there for the same reason — and it renders from data published on
+		// the turn, which is what this Definition collects.
+
+		/** Location key the Definition publishes the turn's artifacts under. */
+		const TURN_DATA_KEY = "compliance-artifacts";
+
+		/**
+		 * Collects, per turn, every artifact a create or update call produced.
+		 *
+		 * Matched on the result's `meta` rather than on the tool's name: the
+		 * result event does not carry the name, and the meta shape is this
+		 * plugin's own. Only results appended to the session surface count, as in
+		 * ui-deliverables — a replacement is a rewrite of history, not a new
+		 * artifact. An artifact updated twice in a turn is listed once, at its
+		 * latest version, in the position it first appeared.
+		 */
+		const artifactsDefinition = {
+			kind: TURN_DATA_KEY,
+			match: (event) => {
+				if (event.type === "turn/start") return { id: String(event.data.turn), role: "start" };
+				if (event.type === "tool/result" && event.surfaceOp === "append" && receiptFromMeta(event.data?.meta) !== null) {
+					return { id: String(event.data.turn), role: "update" };
+				}
+				return null;
+			},
+			start: (_context, match) => ({ turn: match.event.data.turn, artifacts: [] }),
+			update: (context, match) => {
+				const receipt = receiptFromMeta(match.event.data?.meta);
+				if (receipt === null || match.event.data?.message?.content?.[0]?.isError === true) return context.state;
+				const entry = { ...receipt, seq: match.event.seq };
+				const artifacts = context.state.artifacts.slice();
+				const at = artifacts.findIndex((known) => known.artifactId === receipt.artifactId);
+				if (at === -1) artifacts.push(entry);
+				else artifacts[at] = entry;
+				return { ...context.state, artifacts };
+			},
+			buildLocationData: (context, scope, previous) => {
+				if (scope !== "turn" || context.state === undefined || context.state.artifacts.length === 0) return null;
+				if (previous?.kind === "turn" && previous.key === TURN_DATA_KEY
+					&& previous.turn === context.state.turn && previous.value === context.state.artifacts) return previous;
+				return { kind: "turn", turn: context.state.turn, key: TURN_DATA_KEY, value: context.state.artifacts };
+			},
+		};
+
+		/**
+		 * The artifacts a closing turn made, from the data the Definition published.
+		 * @param owner - the turn-tail owner props (`turn`, `seq`).
+		 * @returns the receipts, oldest first; empty when the turn made none.
+		 */
+		function artifactsForClosing(owner) {
+			const published = owner?.turn?.data?.get?.(TURN_DATA_KEY);
+			if (!Array.isArray(published)) return [];
+			// Only what the turn made before its closing answer, as ui-deliverables
+			// reads its own: the tail belongs to that answer.
+			return published.filter((entry) => typeof owner.seq !== "number" || entry.seq < owner.seq);
+		}
+
+		/**
+		 * The turn tail's artifact cards.
+		 * @param props - the turn-tail owner props.
+		 * @returns one card per artifact, or null when the turn made none.
+		 */
+		function ArtifactsTurnTail(props) {
+			const artifacts = artifactsForClosing(props);
+			if (artifacts.length === 0) return null;
+			return jsx("div", {
+				style: { display: "flex", flexDirection: "column", gap: "8px", margin: "8px 0" },
+				children: artifacts.map((receipt) => jsx(ArtifactCard, { receipt }, receipt.artifactId)),
 			});
 		}
 
@@ -951,6 +1051,19 @@ window.__ModuleLoader__.load({
 				yield ctx.slots.register({ name: "tool.call.toolview", key: updateToolName }, ArtifactToolView);
 			});
 
+			// The turn-tail copy of the cards. Both halves are optional: without the
+			// conversation engine nothing is collected, without the chat's tail
+			// nothing is shown, and the inline card works either way.
+			ctx.inject(["uiConversation"], (scoped) => {
+				scoped.uiConversation.events.register(artifactsDefinition);
+			});
+			ctx.slots.inject("conversation.chat.turnTail", function* () {
+				yield ctx.slots.register(
+					{ name: "conversation.chat.turnTail", id: "@compliance/dsh-artifacts" },
+					ArtifactsTurnTail,
+				);
+			});
+
 			// The gallery is two seats in two different owners — the sidebar holds
 			// the entry, the app frame holds the surface — so each is injected
 			// against its own declarer rather than assumed present. A composition
@@ -984,7 +1097,10 @@ window.__ModuleLoader__.load({
 
 		exports.apply = apply;
 		exports.inject = inject;
-		exports.__test__ = { parseAddress, addressOf, receiptOf, pendingTitle, failureOf, filterArtifacts, localDay, gallery, TAB_ID };
+		exports.__test__ = {
+			parseAddress, addressOf, receiptOf, pendingTitle, failureOf, filterArtifacts, localDay, gallery, TAB_ID,
+			artifactsDefinition, artifactsForClosing,
+		};
 		return module.exports;
 	}
 });
