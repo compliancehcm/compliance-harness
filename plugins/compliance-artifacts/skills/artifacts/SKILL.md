@@ -1,7 +1,7 @@
 ---
 name: artifacts
-description: Build interactive HTML artifacts shown in a panel beside the conversation with create_artifact and update_artifact. Read this before the first artifact of a conversation. It covers when a page beats prose, the one-shot constraint (you never see the result), the document skeleton, the Compliance HCM design system every page already receives, which CDN libraries are reachable and which are not, the sandbox rules that silently break a page - no localStorage, no network calls - how to iterate with old_str instead of resending the page, and how to talk about an artifact the user is already looking at.
-whenToUse: Before calling create_artifact, or when an artifact came out blank, unstyled, or failed to load a library.
+description: Build interactive HTML artifacts in the panel beside the conversation with create_artifact and update_artifact. Read it before the first artifact of a conversation and before any chart inside a page. Covers when a page beats prose, the one-shot constraint, the document skeleton, the design system already in every page, charts with the local ECharts (never a CDN, never a hand-drawn canvas), reachable CDNs, the sandbox rules (no storage, no network) and iterating with old_str.
+whenToUse: Before calling create_artifact, before putting a chart in a page, or when an artifact came out blank, unstyled, or failed to load a library.
 ---
 
 # Artifacts
@@ -74,7 +74,83 @@ pt-BR content rules: sentence case, the `·` connective, `R$ 9.480,00`, and
 - **Never hard-code a hex colour or a font.** A literal `#fff` or `Arial` breaks
   the five brand themes the user can switch between. Use `var(--…)`.
 - **Charts take their colours from the tokens.** Read them with
-  `getComputedStyle(document.documentElement).getPropertyValue('--primary')`.
+  `getComputedStyle(document.documentElement).getPropertyValue('--primary')` —
+  the skeleton under *Charts in a page* does it for you.
+
+## Charts in a page
+
+### Two places a chart can live — they are not the same
+
+| | `render_chart` | A chart inside an artifact |
+|---|---|---|
+| Where it appears | on the tool call's card, in the conversation | inside your page, in the panel |
+| Who draws it | the app itself, from the `option` you pass | your page's own script |
+| Where it runs | the app's own frame, with the user's session | a sandboxed frame with an **opaque origin**: no session, no network |
+| ECharts comes from | the app, automatically | `<script src="/echarts/echarts.min.js"></script>` in your page, which the server replaces with the bundle **inline** |
+| Theme and colours | applied by the app — set no colours | yours to read from the tokens |
+| Choose it when | one chart answers the question | the chart is part of something to explore: KPIs, filters, several views |
+
+Both are **ECharts 6.1**, so the option skeletons and the legend/grid rules of the
+`echarts-charts` skill apply unchanged inside a page.
+
+### Use ECharts — never draw a chart by hand
+
+- **Never draw a data chart with `canvas.getContext('2d')`, SVG paths you
+  compute, or `<div>`s with a fixed height.** A hand-sized canvas is blurry on
+  every high-density screen, has no axes, ticks, tooltips or resize, and the bars
+  come out inconsistent. ECharts handles all of it.
+- A CSS bar is fine only for a **simple proportion** with no axis — a thin
+  composition strip, a progress bar beside a number.
+- **Do not load ECharts from a CDN**, and do not write a `setInterval` that
+  waits for `echarts` to appear. Write the local `<script src>` exactly as below:
+  the server swaps it for the bundle inline, so `echarts` exists on the very next
+  line, works without internet access, and costs no request.
+
+### The skeleton
+
+```html
+<div class="ds-card"><div id="grafico" style="height:320px"></div></div>
+
+<script src="/echarts/echarts.min.js"></script>
+<script>
+  const dados = [{ mes: "Jan", valor: 1200 }, { mes: "Fev", valor: 1350 }];
+
+  const el = document.getElementById("grafico");
+  if (typeof echarts === "undefined") {
+    el.textContent = "Não foi possível carregar o gráfico.";
+  } else {
+    const chart = echarts.init(el);
+    const pintar = () => {
+      const css = getComputedStyle(document.documentElement);
+      const t = (nome) => css.getPropertyValue(nome).trim();
+      chart.setOption({
+        color: [t("--primary"), t("--accent"), t("--brand-300"), t("--muted-foreground")],
+        textStyle: { color: t("--foreground"), fontFamily: getComputedStyle(document.body).fontFamily },
+        tooltip: { trigger: "axis" },
+        legend: { top: 0, textStyle: { color: t("--muted-foreground") } },
+        grid: { top: 32, left: 8, right: 16, bottom: 8, containLabel: true },
+        xAxis: { type: "category", data: dados.map((d) => d.mes),
+                 axisLine: { lineStyle: { color: t("--border") } } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: t("--border-subtle") } } },
+        series: [{ type: "bar", name: "Custo", data: dados.map((d) => d.valor) }],
+      });
+    };
+    pintar();
+    // The panel resizes without a window resize event; observe the element.
+    new ResizeObserver(() => chart.resize()).observe(el);
+    // Light and dark switch the tokens without a reload: repaint with them.
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
+  }
+</script>
+```
+
+- Give the container an explicit **height**; a zero-height element draws nothing.
+- One `<script src="/echarts/echarts.min.js">` per page, before the script that
+  uses it, with no `async`, `defer` or `type="module"`. Several charts share it:
+  one `echarts.init` per container.
+- Inside a page you **do** set the colours (from the tokens, as above). The
+  "set no colours" rule of `echarts-charts` is about `render_chart`, where the app
+  themes the chart for you.
 
 ## What the sandbox allows, and what it silently breaks
 
@@ -85,7 +161,7 @@ or dead page rather than an error message:
 |---|---|---|
 | `localStorage`, `sessionStorage`, `document.cookie` | opaque origin — reading **throws**, it does not return empty | keep state in a JavaScript variable |
 | `fetch`, `XMLHttpRequest`, WebSocket | `connect-src 'none'` | **inline the data** in a `<script>` |
-| Loading a library from any other host | CSP allowlist | use one of the CDNs below |
+| Loading a library from any other host | CSP allowlist | use one of the CDNs below — or, for charts, the local ECharts above |
 
 An unguarded read **aborts the rest of the script**, so the page renders half
 built with no error the user can see. Wrap every storage or cookie access in
@@ -93,9 +169,21 @@ built with no error the user can see. Wrap every storage or cookie access in
 
 **Reachable CDNs**: `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, `unpkg.com`,
 `cdn.tailwindcss.com`, `fonts.googleapis.com`, `fonts.gstatic.com`. Pin an exact
-version. React, Tailwind, Chart.js and D3 all load from these; anything else is
-blocked with no visible error, so prefer writing it yourself over guessing at a
-host.
+version. React, Tailwind and D3 load from these; anything else is blocked with no
+visible error, so prefer writing it yourself over guessing at a host. For charts,
+use the local ECharts — not Chart.js or ECharts from a CDN.
+
+A CDN depends on the user's network reaching it, and a corporate network may not.
+When you do load one:
+
+- Put the `<script src>` **before** the script that uses it, with no `async` or
+  `defer`. A plain script blocks the parser until it has run, so the library is
+  defined on the next line — no polling.
+- Still check before using it, and say so on the page if it is missing:
+  `if (typeof d3 === "undefined") { el.textContent = "Não foi possível carregar a biblioteca."; }`.
+  A library that failed to load leaves a blank area and no error the user can see.
+- If you must use `defer`, start your code in
+  `window.addEventListener("load", …)`, never in a `setInterval`.
 
 The data always travels **inside** the page. If it came from `run_pandas`, read
 the values and inline them — the page cannot open the file.
