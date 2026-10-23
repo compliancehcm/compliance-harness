@@ -49,6 +49,7 @@ face and a way out (see [Browser half](#browser-half)).
 | `src/oidc.ts` | Discovery, PKCE, code exchange, refresh, logout URL |
 | `src/claims.ts` | Payload decoding and the claim requirement |
 | `src/sessions.ts` | Opaque-id sessions, expiry, pending logins |
+| `src/broker.ts` | The token broker: a user's own backend obtains that user's access token |
 | `src/pages.ts` | Server-rendered pages (the Compliance HCM design system's login layout, pt-BR) and the liveness script |
 | `assets/` | Inter and the white Compliance wordmark, inlined into those pages as `data:` URIs — the pages may reference nothing by URL |
 | `client.js` | Browser half: the user row and the sign-out action |
@@ -136,7 +137,10 @@ Refused for a non-admin: `credentials.*`, `llm.providers`,
 `llm.discoverModels`, `settings.openDocument`,
 `agentPreset.{read,copy,openDocument,remove}`,
 `host.{pickDirectory,openPath,listDirectory,createDirectory}`, and the
-`dynamicCordisRunner` and `pluginInventory` Remote namespaces.
+`dynamicCordisRunner`, `pluginInventory` and `pluginManager` Remote namespaces.
+The last installs packages and toggles bundles in the backend's profile; its
+sidebar page is removed from the user role, and this refusal is what keeps a
+crafted call from reaching it anyway.
 
 Two cases are decided from the request **body**, not the path:
 
@@ -172,6 +176,41 @@ direction: the surface closes rather than opens.
 | `/auth/logout` | Drops the session, then RP-initiated provider logout |
 | `/auth/status` | `{authenticated, subject, name}`; the liveness poll reads it |
 
+And one on the harness's **loopback** webserver rather than the public port,
+registered only when the tenancy service is mounted:
+
+| Path | Purpose |
+|---|---|
+| `/_compliance/sso-token` | The token broker (path owned by the tenancy service). `POST` with `Authorization: Bearer <backend key>` answers `{accessToken, expiresAt}` for the user that key belongs to; `?force=1` renews first. 401 when the key is unknown or the user has no live session |
+
+## The token broker
+
+ALMA accepts this login's access token, so a user's backend calls ALMA with it
+instead of signing the user in a second time (`plugins/compliance-alma-mcp`).
+Sessions therefore keep the **access token** too, not only the refresh token —
+still only in this process's memory, never in the browser.
+
+The backend cannot read the session (it is another, confined process), and
+pushing the token with each proxied request would not survive a long agent run
+past a five-minute token. So the backend asks, at the moment it needs one:
+
+- The tenancy service gives every backend it starts a random key and this
+  route's URL, as `COMPLIANCE_SSO_TOKEN_KEY` and `COMPLIANCE_SSO_TOKEN_URL`. The
+  key maps to exactly one subject, so a backend can only obtain its own user's
+  token; it is forgotten when that backend stops.
+- `SsoGate.accessTokenFor` takes that user's most recently used live session and
+  renews it first when fewer than 60 seconds remain (or when forced, after the
+  resource server refused the token). It reads the session without touching the
+  idle timer: an agent calling ALMA is not the human using the app.
+- Renewals are deduplicated per session. Keycloak rotates refresh tokens, so a
+  browser request and a backend's token request renewing the same session at
+  once would spend one refresh token twice, and the loser's refusal would end
+  the session.
+
+What this costs: the token reaches the user's backend, inside the jail the
+agent's shell also runs in. See the ALMA plugin's limitations for what that
+means and how to narrow it.
+
 ## Design notes worth knowing before changing this
 
 **The cross-site check is load-bearing.** The harness trust fence requires any
@@ -183,7 +222,8 @@ cross-site defence — so the proxy makes that decision itself first
 and silently reopens the config plane to cross-site requests.
 
 **No JWT signature verification, on purpose.** Tokens are fetched by this process
-directly from the token endpoint over TLS and never leave it; the browser holds
+directly from the token endpoint over TLS and reach no browser — the access
+token goes only to the user's own backend, through the broker; the browser holds
 only an opaque session id. Authenticity rests on that channel, which is the same
 judgement the vendored provider flows already make. If a token ever starts
 arriving from the browser, `src/claims.ts` becomes wrong and JWKS verification

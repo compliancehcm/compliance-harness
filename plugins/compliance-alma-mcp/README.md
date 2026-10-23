@@ -4,70 +4,70 @@ ALMA — the Compliance HCM assistant — reached as MCP tools inside each user'
 workspace. The model sees them as `mcp__alma__*`, beside its own tools.
 
 This plugin is not an MCP bridge. `@deepseek-ai/dsh-mcp-client` already is one,
-and it is what ends up talking to ALMA; this plugin exists because ALMA's MCP
-endpoint is an OAuth-protected resource and that client cannot authorize itself.
+and it is what ends up talking to ALMA; this plugin exists to put the right
+`Authorization` header on every request it makes.
 
-## What the endpoint demands
+## Whose token
+
+ALMA's MCP endpoint accepts the access token Keycloak issues at the Compliance
+SSO login. So the header is `Authorization: Bearer <the signed-in user's SSO
+access token>` — the same token `plugins/sso-auth` obtained when the human
+signed in to this app. There is no second login, no client registration, no
+consent page and no grant stored by this plugin.
+
+The token lives in the gateway, in the user's SSO session; this plugin runs in
+the user's own backend, a separate and confined process. It gets the token by
+asking:
 
 ```
-POST https://mcp.compliancehcm.com.br/mcp        → 401
-www-authenticate: Bearer resource_metadata=".../oauth-protected-resource/mcp"
+backend (this plugin)                         gateway (sso-auth + tenancy)
+  relay needs a token ── POST $COMPLIANCE_SSO_TOKEN_URL ──► token broker
+                          Authorization: Bearer $COMPLIANCE_SSO_TOKEN_KEY
+                                                │ key → subject   (tenancy)
+                                                │ subject → latest live session
+                                                │ renew first if < 60s left
+                      ◄── { accessToken, expiresAt } ──┘
 ```
 
-Its metadata, at the time of writing:
-
-| Field | Value |
-|---|---|
-| `authorization_servers` | `https://mcp.compliancehcm.com.br/` |
-| `grant_types_supported` | `authorization_code`, `refresh_token` |
-| `code_challenge_methods_supported` | `S256` |
-| `registration_endpoint` | `/register` (RFC 7591 dynamic registration) |
-| `scopes_supported` | `openid`, `profile` |
-
-There is **no machine grant**. No `client_credentials`, no long-lived service
-token: every ALMA token begins in a browser, as a specific person. That single
-fact decides everything below — the plugin has to hold a conversation with a
-human, and it has to hold the result per user.
+Both variables are set on each backend by `@compliance/dsh-tenancy` when it
+starts it. The key is minted per backend and names its user, so a backend can
+only ever obtain its own user's token. Pushing the token along with each proxied
+browser request would not do: Keycloak access tokens live minutes, and an agent
+run can call ALMA long after the browser's last request.
 
 ## Layout
 
 | File | Role |
 |---|---|
-| `index.js` | Host half: validates the row, registers the routes, mounts the client |
+| `index.js` | Host half: validates the row, registers the routes, mounts the client at boot |
 | `src/config.js` | Configuration and its validation, at load, all problems at once |
-| `src/oauth.js` | Discovery (RFC 9728), registration (RFC 7591), PKCE (RFC 7636), `resource` (RFC 8707), code exchange, refresh |
-| `src/tokens.js` | The grant, as a `grant` record in `ctx.credentials` |
-| `src/authorizer.js` | The single owner of "what token do we send right now" |
+| `src/sso-token.js` | The single owner of "what token do we send right now": asks the broker, caches until shortly before expiry |
 | `src/relay.js` | The authenticating loopback hop the MCP client talks to |
+| `src/routes.js` | `/alma/status`, for diagnosis |
 | `src/mcp.js` | Mounts one `@deepseek-ai/dsh-mcp-client` instance over that relay |
-| `client.js` | Browser half: one action in the settings panel, nothing more |
+
+There is no browser half: nothing is left for a human to click.
 
 ## How a request flows
 
 ```
-browser ──SSO──► gateway ──proxy──► the user's own backend
+one mcp-client instance ── url: http://127.0.0.1:<port>/alma/mcp
                                       │
-                  GET  /alma/connect ─┤ register (once) + PKCE → 302 to ALMA
-                  GET  /alma/callback ┤ code → tokens → record → back to the app
-                  GET  /alma/status ──┤ page, or JSON for the browser half
-                  POST /alma/disconnect
-                                      │
-                  prefix /alma/mcp ───┤ inject the current bearer,
-                                      │ refresh when stale, retry once on 401
+                  prefix /alma/mcp ───┤ check the relay nonce,
+                                      │ inject the user's SSO token,
+                                      │ on 401: force one renewal, retry once
                                       ▼
                             https://mcp.compliancehcm.com.br/mcp
-                                      ▲
-              one mcp-client instance ┘ url: http://127.0.0.1:<port>/alma/mcp
 ```
 
 ## Why a relay instead of a header
 
 `@deepseek-ai/dsh-mcp-client` takes `headers` as **static** strings, resolved
-once when its row activates. An ALMA access token lives about an hour.
+once when its row activates, while an SSO access token lives minutes.
 
-Remounting the client on every refresh would work — the tool names are a pure
+Remounting the client on every renewal would work — the tool names are a pure
 function of `serverName`, so they would come back identical — but it would
-unregister and re-register every tool once an hour, and it still could not answer
+unregister and re-register every tool each time, and it still could not answer
 a `401` on a token that looked fresh. Pointing the client at a loopback route
 instead makes the header it holds static (the relay nonce) and the token dynamic,
 one decision per request. The relay adds no listener: it is a route on the
@@ -78,86 +78,75 @@ public origin into the signed-in user's backend, so `/alma/mcp` is reachable fro
 that user's browser too. A request without the per-process nonce is refused with
 `403` rather than served as that user.
 
-## Why the routes are HTTP and not RPC
+## When the session ends
 
-The SSO gate judges every request. `plugins/sso-auth/src/policy.ts` fences the
-RPC plane to administrators and admits any authenticated user on a path that is
-not an API method — so a plain route reaches an ordinary user without widening
-that fence, and needs no entry in `ADMIN_METHODS` or `USER_SETTINGS_NAMESPACES`.
-The pages are server-rendered for the same reason the gate's are: they must work
-before, and independently of, the application bundle.
+Signing out, idling out (60 minutes without the app open, by default) or reaching
+the session's absolute deadline ends the SSO session, and with it the token. The
+broker then answers `401`, and so does the relay — **without** reaching ALMA —
+with a reason the model receives as the tool call's error: the user must sign in
+again. The tools stay registered; the next call after the user signs back in
+works, with nothing remounted.
 
-## Why the client is mounted lazily
+The mounted client is given a reconnect policy with no ceiling (`maxAttempts`
+unbounded, backoff capped at 60s). mcp-client's default gives up after ten
+failures and unregisters the tools until the plugin reloads, which would turn a
+lunch break into a backend that had lost ALMA for good. While there is no
+session a retry costs one loopback request.
 
-The mcp-client row is mounted by this plugin once a grant exists — not inserted
-by the overlay. Inserted, it would connect at boot, be refused by an endpoint
-nobody has authorized yet, and burn its reconnect budget (ten consecutive
-failures) within a minute, long before the user reached the connect page. It is
-mounted when a login lands and disposed when the workspace disconnects.
-
-`plugins/` is not a pnpm workspace member and has no `node_modules`, so the
-package cannot be imported by specifier from here. `resolveMcpClientFrom` names a
-directory whose dependency graph declares it — `apps/cli` does — and resolution
-goes through that, which is also what keeps this plugin from pinning a second
-copy of the harness's own version. The built entry is tried first and the
-TypeScript source subpath second, which is the difference between the built CLI
-launch a per-user backend uses and the tsx source launch of a dev run.
-
-## Where the token lives
-
-In `ctx.credentials`, as a `grant` record under `alma-mcp/alma`. Under tenancy
-that store is the user's own `$DSH_HOME/.credentials.yaml`, inside the only
-writable tree of their jail — so isolation between users is the one the tenancy
-plugin already provides, not a second scheme.
-
-`modifyRecord` is the only write path, and its exclusion holds **across
-processes**: that is what makes a refresh-token rotation safe, since two
-processes rotating one refresh token would otherwise lose whichever wrote first.
-
-Signing out forgets the tokens but keeps `clientId`. The registration identifies
-this workspace as an OAuth client, not the human, so deleting it would make every
-sign-out cost a new dynamic registration on ALMA's side.
+Reading the token is not activity: an agent calling ALMA does not keep a
+session alive whose browser tab was closed.
 
 ## Configuration
 
 | Field | Required | Description |
 |---|---|---|
 | `mcpUrl` | yes | ALMA's MCP endpoint |
-| `publicUrl` | yes | The origin browsers reach. `${publicUrl}/alma/callback` is the redirect URI, so this must be the public one — under this deployment, `SSO_PUBLIC_URL` |
 | `resolveMcpClientFrom` | yes | Directory to resolve `@deepseek-ai/dsh-mcp-client` from (`/app/apps/cli`) |
 | `serverName` | no | Tool namespace; `[A-Za-z0-9_-]{1,32}`, default `alma` |
-| `basePath` | no | Where the four routes and the relay live, default `/alma` |
-| `scopes` | no | Requested scopes, default `["openid", "profile"]` |
-| `clientId` | no | Pin a pre-registered client instead of registering dynamically |
-| `clientSecretEnv` | no | Name of the variable holding that client's secret — never the secret. Requires `clientId` |
-| `clientName` | no | `client_name` sent at registration |
-| `refreshSkewSeconds` | no | Renew this long before the stated expiry, default 120 |
+| `basePath` | no | Where the status route and the relay live, default `/alma` |
+| `refreshSkewSeconds` | no | Ask the broker again this long before the cached token's expiry, default 30. Keep it under 60: the gateway renews a token with less than 60s left before handing it out, so a larger value would make every request ask again |
 | `toolCallTimeoutMs` | no | Cap on one ALMA tool call, default 60000 |
-| `failOnStartupError` | no | Fail the boot when a workspace that IS connected cannot mount its tools, default false |
+| `failOnStartupError` | no | Fail the boot when the tools cannot be mounted — including when there is no broker — default false |
 
 An unknown field is a rejection, not a warning: a silently ignored key reads as
-"the setting I wrote took effect".
+"the setting I wrote took effect". That includes the fields of the OAuth flow
+this plugin used to run (`publicUrl`, `scopes`, `clientId`, `clientSecretEnv`,
+`clientName`).
+
+From the environment, set by `@compliance/dsh-tenancy` rather than by hand:
+
+| Variable | Meaning |
+|---|---|
+| `COMPLIANCE_SSO_TOKEN_URL` | The broker, on the gateway's loopback webserver |
+| `COMPLIANCE_SSO_TOKEN_KEY` | This backend's key, which names its user |
+
+Without them — any process tenancy did not start, such as a shared harness with
+`COMPLIANCE_TENANCY=off` — the plugin mounts no tools and logs why; the
+entrypoint does not compose it there at all.
 
 Environment knobs in the image (`deploy/docker/entrypoint.sh` renders the row):
-`ALMA_ENABLED`, `ALMA_MCP_URL`, `ALMA_SERVER_NAME`, `ALMA_SCOPES`,
-`ALMA_REFRESH_SKEW_SECONDS`, `ALMA_CLIENT_ID`, `ALMA_CLIENT_SECRET`. A pinned
-confidential client also gets `ALMA_CLIENT_SECRET` appended to
-`COMPLIANCE_FORWARD_CREDENTIALS`, because the plugin resolves it from the
-**backend's** environment.
+`ALMA_ENABLED`, `ALMA_MCP_URL`, `ALMA_SERVER_NAME`, `ALMA_REFRESH_SKEW_SECONDS`,
+`ALMA_TOOL_CALL_TIMEOUT_MS`.
 
 That overlay is rendered into `$COMPLIANCE_HARNESS_ROOT/.compliance-render/`
 rather than `/run/compliance-ai`: a bwrap backend binds only the node root, the
 harness root and the user's own tree, so a path under `/run` is simply absent
 inside it.
 
+## What ALMA must accept
+
+The tokens are Keycloak's, for the `compliance-ai-harness` client (the SSO
+row's `clientId`). ALMA has to accept that issuer and whatever audience those
+tokens carry; if it validates `aud`, add an audience mapper to that client in
+Keycloak. When ALMA refuses a token the gateway has just renewed — which no
+expiry explains — the backend logs ALMA's `www-authenticate` header, which
+names the mismatch.
+
 ## Endpoints it owns
 
 | Path | Method | Answer |
 |---|---|---|
-| `/alma/connect` | GET | 302 to ALMA's `/authorize` with a fresh PKCE pair. `?returnTo=<path>` records where to land afterwards; only a same-origin path survives |
-| `/alma/callback` | GET | Exchanges the code, stores the grant, mounts the tools, 302 **back to where the human started** — the destination comes from the remembered attempt, never from the callback's own query, which the authorization server does not sign |
-| `/alma/status` | GET | The status page, or JSON when `Accept: application/json` |
-| `/alma/disconnect` | POST | Forgets the tokens, unmounts the tools. POST-only, so no embedded image can sign a workspace out |
+| `/alma/status` | GET | JSON: whether the client is mounted, whether a token is held and until when, and the last problem. Never the token |
 | `/alma/mcp` | prefix | The relay. Nonce required |
 
 ## Verifying it
@@ -167,18 +156,13 @@ pnpm run build                                   # the built mcp-client is what 
 node plugins/compliance-alma-mcp/tests/smoke.mjs
 ```
 
-The smoke test stands up a fake ALMA advertising the same metadata the real one
-does, runs the whole login, then drives a real MCP client through the relay —
-`initialize`, `tools/list`, `tools/call` — and exercises the refresh, the 401
-retry, a revoked refresh token and the disconnect. It is not a vitest suite:
-`plugins/` sits outside the repository's test globs on purpose.
-
-Against the real endpoint, discovery alone is safe to check without registering
-anything:
-
-```sh
-curl -sS https://mcp.compliancehcm.com.br/.well-known/oauth-protected-resource/mcp
-```
+The smoke test puts the **real** token broker from `plugins/sso-auth` in front of
+a fake gateway session and a fake ALMA, mounts the plugin, then drives a real MCP
+client through the relay — `initialize`, `tools/list`, `tools/call` — and
+exercises the token cache, the forced renewal on a 401, a session that ends and
+comes back, a burst of requests sharing one broker call, and a process with no
+broker. The gate's side (which session, when it renews, renewals deduplicated)
+is `plugins/sso-auth/tests/smoke.mjs`.
 
 ## Model Experience
 
@@ -188,20 +172,19 @@ curl -sS https://mcp.compliancehcm.com.br/.well-known/oauth-protected-resource/m
 
 Whatever ALMA advertises, under `mcp__alma__<rawName>`, with ALMA's own
 descriptions and input schemas — `@deepseek-ai/dsh-mcp-client` owns that
-projection, and this plugin adds nothing to it. Before a workspace connects,
-there are no such tools at all.
+projection, and this plugin adds nothing to it. While the user has no live SSO
+session, a call fails with an error saying they must sign in again.
 
 #### Token effect
 
 The advertised schemas are paid for on every request while the tools are
-registered. Connecting adds them mid-session; disconnecting removes them.
+registered, which is the life of the backend.
 
 #### KV Cache effect
 
-Prefix-stable while the tool set is unchanged. A refresh does **not** disturb it
-— that is the point of the relay. Connecting or disconnecting changes the tool
-definitions and invalidates reuse from the first changed token, which is
-unavoidable: it is a change in what the model can do.
+Prefix-stable while the tool set is unchanged. A token renewal does **not**
+disturb it — that is the point of the relay — and neither does a session that
+ends and comes back, since the tools stay registered throughout.
 
 ## When a call takes too long
 
@@ -221,11 +204,16 @@ caller hangs up — so nothing between here and ALMA shortens the window.
 
 ## Known Limitations and Deferred Work
 
-- **The login is not resumable.** An attempt lives in the process that started
-  it, in memory, for ten minutes. Reloading the page mid-login starts over.
-- **Nothing is revoked.** Disconnecting forgets the local tokens; ALMA is not
-  told, because the credential seam has no place to declare a provider-side
-  revoke.
+- **The agent can reach the user's SSO token.** The broker key is in the
+  backend's environment, and the agent's shell runs in the same jail as the
+  backend, so a prompt-injected agent could ask the broker for the token and
+  use it beyond ALMA, wherever Compliance accepts that issuer's tokens. The
+  OAuth grant this replaced had the same exposure, but it was valid for ALMA
+  alone. Narrowing it means a token scoped to ALMA — Keycloak token exchange,
+  or a dedicated audience — rather than the login's own token.
+- **No session, no ALMA.** The token is the human's session. Closing the app for
+  longer than the idle timeout, or signing out, makes running agents' ALMA calls
+  fail until the user signs in again.
 - **Tools only.** MCP resources and prompts have no consumer in the harness, so
   they are not bridged — that limit is mcp-client's, not this plugin's.
 - **The relay buffers request bodies** (4 MiB cap) and streams responses. An MCP

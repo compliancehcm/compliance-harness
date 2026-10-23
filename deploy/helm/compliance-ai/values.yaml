@@ -62,17 +62,16 @@ alma:
   enabled: true
   mcpUrl: https://mcp.compliancehcm.com.br/mcp
   serverName: alma
-  scopes: openid profile
-  refreshSkewSeconds: 120
+  # ALMA is called with each user's own SSO token, so there is no client to
+  # register and no secret. Requires tenancy. Keep this under 60: the gateway
+  # renews a token handed to a backend when it has less than 60s left.
+  refreshSkewSeconds: 30
   toolCallTimeoutMs: 300000
-  # Pins one pre-registered OAuth client; empty means each workspace registers
-  # itself dynamically. Its secret goes in the Secret as ALMA_CLIENT_SECRET.
-  clientId: ""
 
 # ── secrets ───────────────────────────────────────────────────────────────────
 # Every key of the Secret becomes an environment variable of the same name.
 # The keys the image reads: SSO_CLIENT_SECRET (empty or absent = public PKCE
-# client), OPENROUTER_API_KEY, DEEPSEEK_API_KEY, ALMA_CLIENT_SECRET.
+# client), OPENROUTER_API_KEY, DEEPSEEK_API_KEY.
 secrets:
   # Name of a Secret you manage (kubectl, External Secrets, Sealed Secrets…).
   # When set, `values` below is ignored and the chart creates no Secret.

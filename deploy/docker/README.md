@@ -189,14 +189,11 @@ Optional, with the image's defaults:
 | `COMPLIANCE_PORT_RANGE_START` / `_END` | `31000` / `31200` | Loopback ports for backends |
 | `COMPLIANCE_FORWARD_CREDENTIALS` | `DEEPSEEK_API_KEY OPENROUTER_API_KEY` | Variables handed to each backend |
 | `COMPLIANCE_TENANCY` | `on` | `off` runs one shared harness with the gate in front — no per-user isolation |
-| `ALMA_ENABLED` | `on` | `off` composes no ALMA connection at all |
+| `ALMA_ENABLED` | `on` | `off` composes no ALMA connection at all. Forced off when `COMPLIANCE_TENANCY=off`: ALMA is called with each user's own SSO token, which only a per-user backend can obtain |
 | `ALMA_MCP_URL` | `https://mcp.compliancehcm.com.br/mcp` | ALMA's MCP endpoint |
 | `ALMA_SERVER_NAME` | `alma` | Tool namespace; the model sees `mcp__alma__*` |
-| `ALMA_SCOPES` | `openid profile` | Scopes requested from ALMA |
-| `ALMA_REFRESH_SKEW_SECONDS` | `120` | Renew this long before an access token expires |
+| `ALMA_REFRESH_SKEW_SECONDS` | `30` | Ask the gateway for a new token this long before the cached one expires. Keep it under 60, the gateway's own renewal margin |
 | `ALMA_TOOL_CALL_TIMEOUT_MS` | `300000` | How long one ALMA tool call may take before the MCP SDK answers `-32001 Request timed out` |
-| `ALMA_CLIENT_ID` | — | Pin one pre-registered OAuth client; unset means each workspace registers itself dynamically |
-| `ALMA_CLIENT_SECRET` | — | That client's secret, for a confidential pinned client. Appended to `COMPLIANCE_FORWARD_CREDENTIALS` automatically, because the plugin resolves it in the backend |
 
 Provider credentials are read from the gateway's environment and forwarded per
 the table above. The composed default LLM is **OpenRouter**
@@ -235,18 +232,19 @@ taken from and its hash are in
 origin, fetched by a browser only when a conversation actually shows a chart. See
 `plugins/compliance-echarts/README.md`.
 
-## ALMA needs no redirect URI registered anywhere
+## ALMA uses the SSO login
 
-The ALMA plugin registers itself with ALMA's authorization server dynamically
-(RFC 7591) and declares `SSO_PUBLIC_URL` + `/alma/callback` as its own redirect
-URI in that registration — so unlike `SSO_PUBLIC_URL/auth/callback`, this one is
-not configured on the Keycloak client and needs nothing from an administrator.
-`ALMA_CLIENT_ID` pins a pre-registered client instead, and then that client must
-accept exactly `SSO_PUBLIC_URL/alma/callback`.
+Signing in to the harness signs the user in to ALMA: ALMA accepts the access
+token Keycloak issued for `SSO_CLIENT_ID`, so there is no second login, no
+client registration and no ALMA secret. Each backend asks the gateway for its
+own user's token (a loopback token broker, keyed per backend by the tenancy
+plugin) and the gateway renews the session's tokens as they near expiry.
 
-Nobody is signed into ALMA by being signed into the harness: each user connects
-once, from the settings panel's **Connect ALMA** action or by opening
-`/alma/connect`. Until then their workspace simply has no ALMA tools. See
+What this needs from Keycloak and ALMA: ALMA must accept tokens whose issuer is
+`SSO_ISSUER` and whose audience is what this client's access tokens carry —
+add an audience mapper on the `SSO_CLIENT_ID` client if ALMA checks `aud`. A
+refusal of a freshly renewed token is logged by the backend with ALMA's
+`www-authenticate` header, which names the mismatch. See
 `plugins/compliance-alma-mcp/README.md`.
 
 ## Overlays are generated, not copied

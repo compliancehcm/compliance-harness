@@ -36,9 +36,5 @@ data:
   ALMA_ENABLED: {{ ternary "on" "off" .Values.alma.enabled | quote }}
   ALMA_MCP_URL: {{ .Values.alma.mcpUrl | quote }}
   ALMA_SERVER_NAME: {{ .Values.alma.serverName | quote }}
-  ALMA_SCOPES: {{ .Values.alma.scopes | quote }}
   ALMA_REFRESH_SKEW_SECONDS: {{ .Values.alma.refreshSkewSeconds | quote }}
   ALMA_TOOL_CALL_TIMEOUT_MS: {{ .Values.alma.toolCallTimeoutMs | quote }}
-  {{- with .Values.alma.clientId }}
-  ALMA_CLIENT_ID: {{ . | quote }}
-  {{- end }}

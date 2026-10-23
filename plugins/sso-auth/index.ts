@@ -12,6 +12,7 @@
  */
 
 import { resolveConfig } from './src/config.ts'
+import { createBroker } from './src/broker.ts'
 import { SsoGate } from './src/gate.ts'
 import { SessionStore } from './src/sessions.ts'
 import { startProxy } from './src/proxy.ts'
@@ -79,6 +80,21 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
   const tenancy = ctx.get<TenancyFacade>('tenancy')
   if (tenancy === undefined) {
     ctx.logger.info('sso-auth: no tenancy service; every session shares this harness')
+  } else {
+    // The token broker only exists under tenancy: it is how a user's own backend
+    // reaches that user's session. Without tenancy there is one shared harness
+    // and no answer to "whose token", so there is no broker either. The route is
+    // on this process's loopback webserver, which under tenancy the proxy never
+    // forwards to.
+    const broker = createBroker({
+      identify: key => tenancy.identify(key),
+      accessTokenFor: (subject, options) => gate.accessTokenFor(subject, options),
+      logger: ctx.logger as unknown as Pick<Console, 'info'>,
+    })
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'exact', path: tenancy.tokenBrokerPath, handler: broker }),
+      'sso-auth: token broker',
+    )
   }
 
   let proxy

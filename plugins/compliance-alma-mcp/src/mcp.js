@@ -3,10 +3,9 @@
  * the relay.
  *
  * The row is mounted programmatically rather than inserted by the overlay
- * because it must appear only once a grant exists. Inserted unconditionally, it
- * would connect at boot, be refused, exhaust its reconnect budget within a
- * minute, and then never come back for the user who signs into ALMA ten minutes
- * later.
+ * because its URL is the relay on this process's own webserver port, which is
+ * only known once the webserver is listening, and because it must not exist at
+ * all in a process with no token broker to authorize it.
  *
  * `plugins/` is not a workspace member and has no `node_modules`, so the package
  * cannot be imported by specifier from here. It is resolved from a directory the
@@ -24,6 +23,15 @@ import { RELAY_HEADER } from './relay.js'
 
 /** Package holding the MCP bridge this plugin mounts. */
 const MCP_CLIENT_PACKAGE = '@deepseek-ai/dsh-mcp-client'
+
+/**
+ * Reconnect without a ceiling. mcp-client's default gives up after ten
+ * consecutive failures and unregisters the tools until the plugin reloads —
+ * and a user who signs out for lunch would otherwise come back to a backend
+ * that had permanently lost ALMA. While there is no session the relay answers
+ * 401 itself, without reaching ALMA, so a retry costs one loopback request.
+ */
+const RECONNECT = { maxAttempts: Number.MAX_SAFE_INTEGER, maxDelayMs: 60_000 }
 
 /**
  * Load the mcp-client plugin module from the configured resolution root.
@@ -71,9 +79,8 @@ export function createConnection(ctx, config, nonce) {
     loaded ??= loadMcpClient(config.resolveMcpClientFrom)
     const plugin = await loaded
     const relayUrl = `http://127.0.0.1:${String(ctx.webServer.port)}${config.routes.relay}`
-    // Marked before the await so two concurrent callers — a callback landing
-    // while boot is still mounting — cannot mount two instances and collide on
-    // the serverName reservation.
+    // Marked before the await so two concurrent callers cannot mount two
+    // instances and collide on the serverName reservation.
     const pending = ctx.plugin(plugin, {
       serverName: config.serverName,
       transport: 'streamable-http',
@@ -83,6 +90,7 @@ export function createConnection(ctx, config, nonce) {
       // own default is 60s — short for an HR query that goes looking through a
       // payroll history. It is a deployment field for exactly that reason.
       toolCallTimeoutMs: config.toolCallTimeoutMs,
+      reconnect: RECONNECT,
       failOnStartupError: false,
     })
     fiber = pending

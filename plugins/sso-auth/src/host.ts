@@ -9,10 +9,18 @@
  * rather than as a runtime surprise.
  */
 
-/** The webserver service (`ctx.webServer`), of which only the bound port is read. */
+import type { IncomingMessage, ServerResponse } from 'node:http'
+
+/** The webserver service (`ctx.webServer`): its bound port, and a route for the token broker. */
 export interface WebServerFacade {
   /** The listening port, including the port the OS assigned when configured with 0. */
   readonly port: number
+  /** Register a named route; returns its disposer. */
+  register: (route: {
+    readonly kind: 'exact' | 'prefix'
+    readonly path: string
+    readonly handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
+  }) => () => void
 }
 
 /** The Web invocation service (`ctx.webStartup`) published by the web-startup row. */
@@ -46,6 +54,13 @@ export interface TenancyFacade {
     | { readonly kind: 'failed'; readonly reason: string }
   >
   trackSocket: (subject: string, delta: 1 | -1) => void
+  /**
+   * Where backends were told to ask for their user's SSO token, on this
+   * process's own webserver. The gate registers the broker there.
+   */
+  readonly tokenBrokerPath: string
+  /** The subject whose backend was given this broker key, if any. */
+  identify: (key: string) => string | undefined
 }
 
 /** The subset of the Cordis plugin context this plugin uses. */

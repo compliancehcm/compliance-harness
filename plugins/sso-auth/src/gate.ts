@@ -25,6 +25,12 @@ import type { Authorization, ProxyGate } from './proxy.ts'
 /** How early a token is renewed before it expires. */
 const RENEWAL_SKEW_MS = 30_000
 
+/**
+ * How much life a token handed to a backend must have left. Larger than the
+ * renewal skew because the backend caches it and then makes a call with it.
+ */
+const BROKER_SKEW_MS = 60_000
+
 /** How often the injected script asks whether the session is still alive. */
 const LIVENESS_POLL_MS = 30_000
 
@@ -56,9 +62,23 @@ function safeReturnTo(candidate: string | null): string {
   return candidate
 }
 
+/** What {@link SsoGate.accessTokenFor} hands to a user's backend. */
+export interface BrokeredToken {
+  readonly accessToken: string
+  /** Epoch milliseconds at which the provider said the token expires. */
+  readonly expiresAt: number
+}
+
 /** The gate implementation. */
 export class SsoGate implements ProxyGate {
   private metadata: Promise<ProviderMetadata> | undefined
+  /**
+   * Renewals in flight, per session. Keycloak rotates refresh tokens, so two
+   * concurrent renewals of one session — a browser request and a backend's
+   * token request landing together — would spend the same refresh token twice,
+   * and the loser's refusal would end the session.
+   */
+  private readonly renewing = new Map<string, Promise<boolean>>()
   readonly htmlEpilogue = livenessScript(LIVENESS_POLL_MS)
 
   constructor(private readonly deps: GateDeps) {}
@@ -120,6 +140,31 @@ export class SsoGate implements ProxyGate {
 
     if (!this.deps.sessions.needsRenewal(found, RENEWAL_SKEW_MS)) return { kind: 'allow' }
     return await this.renew(found)
+      ? { kind: 'allow' }
+      : { kind: 'challenge', reason: 'the session could not be renewed' }
+  }
+
+  /**
+   * The access token of a user's live session, renewed first when it is close
+   * to expiry — what the token broker hands to that user's own backend.
+   *
+   * Read-only on the idle timer, like {@link sessionOf}: an agent calling ALMA
+   * is not the human using the app, so a closed tab still idles out and takes
+   * the token with it.
+   *
+   * @param subject - the `sub` claim of the user whose backend is asking.
+   * @param options - `force: true` renews even a token that looks fresh, after
+   * the resource server refused it.
+   * @returns the token, or undefined when the user holds no live session or it
+   * could not be renewed.
+   */
+  async accessTokenFor(subject: string, options: { readonly force?: boolean } = {}): Promise<BrokeredToken | undefined> {
+    const session = this.deps.sessions.latestFor(subject)
+    if (session === undefined) return undefined
+    if (options.force === true || this.deps.sessions.needsRenewal(session, BROKER_SKEW_MS)) {
+      if (!await this.renew(session)) return undefined
+    }
+    return { accessToken: session.accessToken, expiresAt: session.accessExpiresAt }
   }
 
   /** Whether this request needs its body buffered before {@link authorize} can judge. */
@@ -155,24 +200,38 @@ export class SsoGate implements ProxyGate {
     return { kind: 'deny', reason: verdict.reason }
   }
 
-  /** Renew a session whose access token is expiring, or end it. */
-  private async renew(session: Session): Promise<Authorization> {
+  /**
+   * Renew a session's tokens, or end the session; concurrent callers for one
+   * session share a single renewal.
+   * @returns whether the session is still alive with a renewed token.
+   */
+  private async renew(session: Session): Promise<boolean> {
+    const inFlight = this.renewing.get(session.id)
+    if (inFlight !== undefined) return await inFlight
+    const attempt = this.renewOnce(session).finally(() => { this.renewing.delete(session.id) })
+    this.renewing.set(session.id, attempt)
+    return await attempt
+  }
+
+  /** One renewal against the provider. */
+  private async renewOnce(session: Session): Promise<boolean> {
     const token = session.refreshToken
     if (token === undefined) {
       // Without a refresh token the access token's expiry is the session's
       // ceiling; ending it here is what makes that visible as a re-login rather
       // than as calls that quietly start failing upstream.
       this.deps.sessions.drop(session.id)
-      return { kind: 'challenge', reason: 'access token expired and no refresh token was granted' }
+      this.deps.logger.info(`sso-auth: ${session.principal.subject}: access token expired and no refresh token was granted`)
+      return false
     }
     try {
       const renewed = await refresh(await this.provider(), await this.client(), token)
       this.deps.sessions.renewed(session, renewed)
-      return { kind: 'allow' }
+      return true
     } catch (error) {
       this.deps.sessions.drop(session.id)
       this.deps.logger.warn(`sso-auth: refresh failed for ${session.principal.subject}: ${String(error)}`)
-      return { kind: 'challenge', reason: 'refresh rejected by the provider' }
+      return false
     }
   }
 
@@ -306,6 +365,7 @@ export class SsoGate implements ProxyGate {
       && checkClaimsAcross(sources, this.deps.config.admin).ok
 
     const session = this.deps.sessions.create(principal, {
+      accessToken: tokens.accessToken,
       expiresInSeconds: tokens.expiresInSeconds,
       ...tokens.refreshToken !== undefined && { refreshToken: tokens.refreshToken },
       idToken: tokens.idToken,
