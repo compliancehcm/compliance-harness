@@ -394,6 +394,22 @@ describe('MarkdownText', () => {
     expect(container.querySelector('a')).toBeNull()
   })
 
+  it('keeps currency dollars glued to a word as prose while $...$ still opens math', () => {
+    const source = [
+      'Total de proventos (R$367.693), média salarial (R$ 9.428) e US$ 20.',
+      '',
+      'Caleb Nelson (R$15.653), Igor Sérgio (R$14.625) e Thiago Cauã (R$14.023).',
+      '',
+      'Inline $\\theta$ after a space, ($x$) after a parenthesis, and $$y$$.',
+    ].join('\n')
+    const { container } = render(<MarkdownText text={source} />)
+
+    expect([...container.querySelectorAll('.katex annotation')].map(node => node.textContent)).toEqual(['\\theta', 'x', 'y'])
+    expect(container.textContent).toContain('Total de proventos (R$367.693), média salarial (R$ 9.428) e US$ 20.')
+    expect(container.textContent).toContain('Caleb Nelson (R$15.653), Igor Sérgio (R$14.625) e Thiago Cauã (R$14.023).')
+    expect(container.querySelector('.katex-error')).toBeNull()
+  })
+
   it('renders common TeX delimiters and same-line tagged display blocks after the reply settles', () => {
     const source = [
       'Inline dollar $\\theta$ and backslash \\(\\frac{1}{5}\\).',
