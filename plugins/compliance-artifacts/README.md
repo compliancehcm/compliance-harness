@@ -186,6 +186,41 @@ One caveat: a numbered version (`vN`) is cached `immutable`. A design-system
 upgrade therefore reaches an already-cached `vN` only on a new URL. The panel
 and gallery load `latest`, which is `no-store`.
 
+## ECharts is inlined at serve time
+
+A page that writes `<script src="/echarts/echarts.min.js"></script>` is served
+with that tag replaced by the vendored ECharts bundle, inline. The
+`complianceEcharts` service of `plugins/compliance-echarts` provides the bundle.
+The service's own `assetPath` is recognized too, with or without a query string.
+Only the first occurrence is inlined; later ones are dropped. A document that
+large is gzipped when the browser accepts it: 1.1 MB becomes about 360 KB on the
+wire.
+
+Why the page cannot simply fetch that path, as the app does:
+
+- The frame's origin is opaque, so its requests are cross-site.
+- The session cookie is `SameSite=Lax` and stays behind on those requests.
+- The SSO gate therefore answers `401`.
+
+Adding `'self'` to `script-src` would make it work locally and fail behind the
+gate. Verified in Chromium: the document request carries the cookie, a
+`<script src>` from inside the frame does not.
+
+What inlining gives:
+
+- **No network.** The page works on a network with no CDN egress.
+  `tests/browser.mjs` renders a chart with an empty `allowedOrigins` and no route
+  serving the bundle.
+- **No CSP change.** `script-src 'unsafe-inline'` was already granted, and
+  `connect-src 'none'` stays.
+- **No waiting.** The inline script runs where the tag was, so the next script
+  can call `echarts.init` directly.
+
+As with the design system, the stored version keeps the tag exactly as written:
+an `old_str` patch still matches, and a bundle upgrade reaches old pages. The
+`artifacts` skill teaches the tag and a chart skeleton, and forbids hand-drawn
+canvas charts.
+
 ## Configuration
 
 Every tunable is a field on the row's `config` — see
@@ -199,6 +234,10 @@ Trim the list to what this deployment can actually reach.
 
 `designSystem` (default `true`) turns the serve-time design system on or off. It
 is a no-op without `compliance-brand`.
+
+`inlineEcharts` (default `true`) turns the serve-time ECharts bundle on or off. It
+is a no-op without `compliance-echarts`; the `<script src>` is then served as
+written.
 
 ## Panel copy is pt-BR, on purpose
 

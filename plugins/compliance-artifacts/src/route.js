@@ -24,7 +24,20 @@
  *
  * @module
  */
+import { promisify } from 'node:util'
+import { gzip } from 'node:zlib'
 import { listAllArtifacts, readMeta, readVersion, setArchived } from './store.js'
+
+const gzipAsync = promisify(gzip)
+
+/**
+ * Smallest document worth compressing. A page with ECharts inlined is over a
+ * megabyte; a hand-written one is a few kilobytes and gains nothing.
+ */
+const GZIP_MIN_BYTES = 16 * 1024
+
+/** The path compliance-echarts serves its bundle under by default. */
+const DEFAULT_ECHARTS_PATH = '/echarts/echarts.min.js'
 
 /** Address of the gallery's index, under the configured prefix. */
 export const INDEX_SEGMENT = 'index'
@@ -164,15 +177,57 @@ export function withDesignSystem(html, designSystem, themeId) {
   return out
 }
 
+/** Any external script element; the src is checked separately. */
+const SCRIPT_SRC = /<script\b[^>]*?\bsrc\s*=\s*(["'])([^"']*)\1[^>]*>\s*<\/script\s*>/gi
+
+/**
+ * Serve-time ECharts: replace the page's `<script src="/echarts/echarts.min.js">`
+ * with the vendored bundle, inline.
+ *
+ * The page cannot load that path itself. Its frame is sandboxed without
+ * `allow-same-origin`, so every request it makes is cross-site: the session
+ * cookie (`SameSite=Lax`) stays behind and the SSO gate refuses it — a
+ * same-host `<script src>` works on a developer's machine and fails in
+ * production. Inline, the bundle needs no request, no cookie, no CSP change
+ * (`script-src 'unsafe-inline'` is already granted, and `connect-src 'none'`
+ * stays), and no egress to a CDN; it also runs synchronously where the tag was,
+ * so the page's own script after it can call `echarts.init` with no waiting.
+ *
+ * Recognized: the path compliance-echarts serves under, and the default path,
+ * with or without a query string. The first occurrence becomes the bundle; any
+ * later one is dropped, so a page that names it twice does not pay twice.
+ * @param html - the stored document.
+ * @param echarts - the `complianceEcharts` service.
+ * @returns the document to send, unchanged when it does not ask for ECharts.
+ */
+export function withEcharts(html, echarts) {
+  const paths = new Set([echarts.assetPath, DEFAULT_ECHARTS_PATH])
+  let inlined = false
+  const out = html.replace(SCRIPT_SRC, (tag, _quote, src) => {
+    if (!paths.has(src.split(/[?#]/, 1)[0])) return tag
+    if (inlined) return ''
+    inlined = true
+    // A `</script` or `<!--` inside the bundle would end or derail the element
+    // in the HTML tokenizer. The vendored release contains neither; this keeps a
+    // future one from breaking every chart page silently. Both rewrites are
+    // no-ops inside a JavaScript string.
+    const source = echarts.source().replace(/<\/(script)/gi, '<\\/$1').replace(/<!--/g, '<\\!--')
+    return `<script data-compliance-lib="echarts">\n${source}\n</script>`
+  })
+  return out
+}
+
 /**
  * Build the artifact route handler.
  * @param config - the validated plugin configuration.
  * @param designSystem - holder whose `current` is the `complianceDesignSystem`
  *   service while one is composed; read per request, since the service can
  *   arrive or leave after the route is mounted.
+ * @param echarts - holder whose `current` is the `complianceEcharts` service,
+ *   read per request the same way.
  * @returns a node http handler.
  */
-export function artifactHandler(config, designSystem = { current: undefined }) {
+export function artifactHandler(config, designSystem = { current: undefined }, echarts = { current: undefined }) {
   /**
    * Serve one artifact document.
    * @param req - the request.
@@ -306,9 +361,26 @@ export function artifactHandler(config, designSystem = { current: undefined }) {
       }
     }
 
-    const body = Buffer.from(html, 'utf8')
+    const library = config.inlineEcharts ? echarts.current : undefined
+    if (library !== undefined) {
+      try {
+        html = withEcharts(html, library)
+      } catch {
+        // Served as written: the chart is missing, the rest of the page is not.
+      }
+    }
+
+    let body = Buffer.from(html, 'utf8')
+    const encoding = {}
+    if (req.method === 'GET' && body.byteLength >= GZIP_MIN_BYTES
+      && /\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+      body = await gzipAsync(body)
+      encoding['content-encoding'] = 'gzip'
+    }
     res.writeHead(200, {
       ...headers,
+      ...encoding,
+      vary: 'accept-encoding',
       'content-type': 'text/html; charset=utf-8',
       'content-length': String(body.byteLength),
       // A numbered version never changes, so it caches forever; `latest` moves

@@ -82,6 +82,10 @@ export async function createFakeCtx() {
       if (name === 'skills') return ctx.skills
       return services.get(name)
     },
+    provide(name, value) {
+      // A service belongs to the applying fiber, so a re-apply replaces it.
+      services.set(name, value)
+    },
     effect(setup, label) {
       // The real ctx.effect runs the setup immediately and keeps the disposer;
       // so does this, so a registration that throws throws here.
