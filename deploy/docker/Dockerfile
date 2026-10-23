@@ -48,6 +48,14 @@ COPY . .
 ARG DSH_CLIENT_COMMIT_HASH
 ENV DSH_CLIENT_COMMIT_HASH=${DSH_CLIENT_COMMIT_HASH}
 
+# The product name in the browser tab. The shell writes `document.title` itself
+# on every session switch (`<session> — <product>`), from this build-time value
+# or, without it, from the "DSH Local Build" dictionary entry — so the name has
+# to be stamped into the client build. compliance-brand rewriting the served
+# `<title>` only covers the instant before the shell mounts.
+ARG DSH_CLIENT_TITLE="Compliance Harness"
+ENV DSH_CLIENT_TITLE=${DSH_CLIENT_TITLE}
+
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build
 
