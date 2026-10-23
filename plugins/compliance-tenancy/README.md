@@ -88,16 +88,27 @@ The overlays are the cosmetic half — they remove the buttons. The fence is the
 gateway's request policy (`plugins/sso-auth/src/policy.ts`), which refuses the
 endpoints behind them. Omitting a client row does not remove an RPC.
 
-`role-user.overlay.yml` drops Models, plugin configuration, the Loader
-inventory, agent presets, permission presets, and both halves of the dynamic
-Cordis runner — that last one both because it evaluates plugin code defined at
+`role-user.overlay.yml` drops Models, plugin configuration, the sidebar Plugins
+page, the Loader inventory, agent presets, permission presets, and both halves
+of the dynamic Cordis runner — that last one both because it evaluates plugin code defined at
 runtime and because leaving it mounted would have it poll endpoints the gateway
 refuses, filling the console with its own failures.
 
-`role-admin.overlay.yml` keeps the shipped composition. It still replaces the
-native directory chooser: an administrator's backend is confined exactly like
-everyone else's, because tenancy is a boundary rather than a trust level, and a
+`role-admin.overlay.yml` keeps the shipped composition, sidebar Plugins page
+included. It still replaces the native directory chooser: an administrator's
+backend is confined exactly like everyone else's, because tenancy is a boundary rather than a trust level, and a
 native dialog would open on the host outside that boundary.
+
+## The SSO token broker
+
+Every backend is started with two extra variables: `COMPLIANCE_SSO_TOKEN_URL`,
+the broker on the gateway's own loopback webserver (`/_compliance/sso-token`),
+and `COMPLIANCE_SSO_TOKEN_KEY`, a random key minted for that start. The service
+answers `identify(key)` with the subject the key was minted for, and
+`plugins/sso-auth` serves the broker on that basis — so a backend can obtain its
+own user's SSO access token and nobody else's. A restart replaces the key; a
+stopped backend's key is forgotten. `plugins/compliance-alma-mcp` is the
+consumer.
 
 ## Verified
 

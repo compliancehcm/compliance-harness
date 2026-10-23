@@ -13,6 +13,7 @@
  * sessions, workspaces, settings and credentials.
  */
 
+import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { resolveConfig } from './src/config.ts'
 import { confinementProblem, launchSpec, resolveHarnessPaths } from './src/confine.ts'
@@ -27,6 +28,20 @@ export const name = 'compliance-tenancy'
 
 /** How often idle backends are reaped. */
 const REAP_INTERVAL_MS = 60_000
+
+/**
+ * Where, on the gateway's own loopback webserver, a backend asks for its user's
+ * SSO access token. `sso-auth` registers the broker here; this plugin tells
+ * each backend the URL.
+ */
+const TOKEN_BROKER_PATH = '/_compliance/sso-token'
+
+/**
+ * The variables a backend reads the broker from. `@compliance/dsh-alma-mcp`
+ * consumes them; the names are the contract between the two.
+ */
+const TOKEN_URL_ENV = 'COMPLIANCE_SSO_TOKEN_URL'
+const TOKEN_KEY_ENV = 'COMPLIANCE_SSO_TOKEN_KEY'
 
 /** What a caller must tell the service about the user. */
 export interface TenantRequest {
@@ -57,6 +72,13 @@ export interface TenancyService {
   target: (request: TenantRequest) => Promise<TenantTarget>
   /** Note that a user opened or closed a long-lived connection. */
   trackSocket: (subject: string, delta: 1 | -1) => void
+  /** Where on the gateway's webserver backends ask for their user's SSO token. */
+  readonly tokenBrokerPath: string
+  /**
+   * The subject whose running backend was given this broker key.
+   * @returns the subject, or undefined for a key no live backend holds.
+   */
+  identify: (key: string) => string | undefined
 }
 
 /**
@@ -92,6 +114,18 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
   // moment the composition it selects could differ.
   const admins = new Set<string>()
 
+  // One broker key per running backend, minted at its start and forgotten when
+  // it stops. The key is what makes a token request mean "this user": a
+  // backend can only ever present its own, so it can only obtain its own
+  // user's token. Both directions are kept so a restart replaces the old key.
+  const brokerKeys = new Map<string, string>()
+  const brokerSubjects = new Map<string, string>()
+  const forgetBrokerKey = (subject: string): void => {
+    const key = brokerSubjects.get(subject)
+    if (key !== undefined) brokerKeys.delete(key)
+    brokerSubjects.delete(subject)
+  }
+
   const pool = new BackendPool({
     portRange: config.portRange,
     maxBackends: config.maxBackends,
@@ -104,12 +138,35 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
       const spec = launchSpec(paths, harness, {
         port,
         confinement: config.confinement,
-        env: await backendCredentials(ctx, config.forwardCredentials),
+        env: { ...await backendCredentials(ctx, config.forwardCredentials), ...brokerEnv(key) },
         patches: admins.has(key) ? config.adminPatches : config.userPatches,
       })
-      return await startBackend(spec, port, `${paths.state}/backend.log`)
+      try {
+        const backend = await startBackend(spec, port, `${paths.state}/backend.log`)
+        return { ...backend, stop: async () => { forgetBrokerKey(key); await backend.stop() } }
+      } catch (error) {
+        forgetBrokerKey(key)
+        throw error
+      }
     },
   })
+
+  /**
+   * The broker's address and a fresh key for one backend, or nothing when this
+   * gateway has no webserver to host the broker on.
+   */
+  function brokerEnv(subject: string): Record<string, string> {
+    const webServer = ctx.get<{ readonly port: number }>('webServer')
+    if (webServer === undefined) return {}
+    forgetBrokerKey(subject)
+    const key = randomBytes(32).toString('base64url')
+    brokerKeys.set(key, subject)
+    brokerSubjects.set(subject, key)
+    return {
+      [TOKEN_URL_ENV]: `http://127.0.0.1:${String(webServer.port)}${TOKEN_BROKER_PATH}`,
+      [TOKEN_KEY_ENV]: key,
+    }
+  }
 
   ctx.effect(() => {
     const timer = setInterval(() => { void pool.reapIdle() }, REAP_INTERVAL_MS)
@@ -135,6 +192,8 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
       backend.liveSockets = Math.max(0, backend.liveSockets + delta)
       backend.lastUsedAt = Date.now()
     },
+    tokenBrokerPath: TOKEN_BROKER_PATH,
+    identify: key => brokerKeys.get(key),
   }
 
   ctx.provide('tenancy', service)

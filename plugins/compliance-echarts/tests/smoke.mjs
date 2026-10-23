@@ -272,6 +272,14 @@ await check('apply registers the tool, the skill and the asset route', () => {
   assert.deepEqual([...harness.skills.keys()], ['echarts-charts'])
 })
 
+await check('the bundle is provided as a service for artifact pages to inline', async () => {
+  const service = harness.ctx.get('complianceEcharts')
+  assert.equal(service.assetPath, '/charts/echarts.js')
+  const served = await (await fetch(`${harness.origin}/charts/echarts.js`, { headers: { 'accept-encoding': 'identity' } })).text()
+  assert.equal(service.source(), served, 'the service hands out exactly the bytes the route serves')
+  assert.equal(service.etag, (await fetch(`${harness.origin}/charts/echarts.js`)).headers.get('etag'))
+})
+
 await check('the boot global carries the tool name and the asset path', () => {
   const table = []
   harness.emit('webserver/index-inject', table)

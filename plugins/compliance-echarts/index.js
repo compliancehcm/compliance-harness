@@ -13,6 +13,11 @@
  *   src/asset.js  one route serving the vendored ECharts UMD bundle, fetched by
  *                 the browser only when a conversation actually has a chart.
  *
+ * It also provides the bundle itself as the `complianceEcharts` service, which
+ * compliance-artifacts inlines into an artifact page that asks for it. A page
+ * cannot fetch the route: its frame has an opaque origin, so its requests carry
+ * no session cookie and the SSO gate refuses them.
+ *
  * The client half (`./client`) owns the card: it claims the `tool.call.toolview`
  * slot under this tool's wire name, so a chart replaces the generic tool row.
  * A surface without that view — the CLI, ACP, the trajectory panel — falls back
@@ -30,6 +35,9 @@ export const inject = ['tools', 'webServer']
 
 /** Global the client half reads to learn the tool name and where the bundle lives. */
 const CONFIG_GLOBAL = '__ECHARTS_CHARTS__'
+
+/** Name of the service other plugins read the vendored bundle through. */
+export const SERVICE_NAME = 'complianceEcharts'
 
 /**
  * Mount the tool, the skill, and the bundle route.
@@ -49,6 +57,16 @@ export function apply(ctx, rawConfig) {
   )
 
   ctx.effect(() => ctx.tools.register(chartTool(config)), 'echarts: render_chart tool')
+
+  // The same bytes the route serves, for a consumer that has to inline them
+  // rather than point a browser at the route. `assetPath` is what a page writes
+  // in its `<script src>`; the consumer recognizes it and swaps in `source`.
+  const source = bundle.raw.toString('utf8')
+  ctx.provide(SERVICE_NAME, {
+    assetPath: config.assetPath,
+    etag: bundle.etag,
+    source: () => source,
+  })
 
   if (config.registerSkill) {
     // `skills` is injected optionally rather than declared: a composition without

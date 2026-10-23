@@ -13,6 +13,20 @@ look at the picture and fix it, so the option has to be right when you send it.
 The data travels inline in `option` and stays in the conversation for every later
 turn. Aggregate before charting.
 
+## `render_chart` or a chart inside an artifact?
+
+| | `render_chart` | Chart inside an artifact page |
+|---|---|---|
+| Appears | on this call's card, in the conversation | inside the page, in the panel |
+| Drawn by | the app, which also applies the theme | the page's own script |
+| ECharts | loaded by the app — nothing for you to do | `<script src="/echarts/echarts.min.js"></script>`, inlined by the server; never a CDN |
+| Colours | set none (see *Color and theme* below) | read from the design-system tokens |
+
+One chart that answers the question: `render_chart`. A chart that is part of a
+page to explore — KPIs, filters, several views — goes in the artifact, and the
+`artifacts` skill has the skeleton. Both are ECharts 6.1: the option shapes and
+the legend/grid rules below hold in either place.
+
 ## First: is a chart the answer?
 
 Chart when the answer is a **shape** — a trend, a comparison across many

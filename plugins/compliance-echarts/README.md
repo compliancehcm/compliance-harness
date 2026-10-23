@@ -12,6 +12,7 @@ Mount it with [`../compliance-echarts.overlay.yml`](../compliance-echarts.overla
 | `ctx.tools` | `render_chart({ option, title?, caption?, height? })` |
 | `ctx.skills` | `echarts-charts` — which chart form answers which question, and the option skeleton for each |
 | `ctx.webServer` | one route (`assetPath`) serving the vendored ECharts UMD bundle |
+| `complianceEcharts` service | the same bundle as `{ assetPath, etag, source() }`, which compliance-artifacts inlines into a chart page |
 | `tool.call.toolview` | the chart card, keyed under the tool's wire name |
 
 ## How a chart survives a reload
@@ -38,6 +39,22 @@ ETag, `immutable`, and gzip (1.1 MB → ~360 KB).
 
 The route is a plain path, not an RPC method, so the SSO gate admits it for any
 authenticated user without widening the fence around the RPC plane.
+
+## Why an artifact page gets the bundle inline instead
+
+The route serves the **app**. An artifact page cannot use it: the page runs in a
+frame sandboxed without `allow-same-origin`, so its origin is opaque and every
+request it makes is cross-site. The session cookie is `SameSite=Lax`, so it
+stays behind, and the SSO gate refuses the request. A same-host `<script src>`
+therefore works on a developer machine with no gate, and fails in production.
+That was verified in Chromium: the frame's document request carries the cookie,
+while a `<script src>` from inside the frame does not.
+
+So this plugin also provides the bundle as the `complianceEcharts` service, and
+compliance-artifacts replaces a page's `<script src="<assetPath>">` with the
+bundle inline when it serves the page. The page needs no request, no CDN and no
+CSP change. One vendored copy serves both surfaces, so a chart in the
+conversation and a chart in a page are the same ECharts.
 
 ## Configuration
 

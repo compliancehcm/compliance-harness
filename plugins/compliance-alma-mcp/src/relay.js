@@ -2,11 +2,11 @@
  * The authenticating loopback relay.
  *
  * `@deepseek-ai/dsh-mcp-client` accepts only STATIC headers, resolved once when
- * its row activates, while an ALMA access token lives about an hour. Rather than
- * remount the client on every refresh — which would unregister and re-register
- * every tool, and still could not react to a 401 — the client is pointed at this
- * route on the harness's own loopback port. The header it holds is static (the
- * relay nonce); the token varies inside here, per request.
+ * its row activates, while the SSO access token sent to ALMA lives minutes.
+ * Rather than remount the client on every renewal — which would unregister and
+ * re-register every tool, and still could not react to a 401 — the client is
+ * pointed at this route on the harness's own loopback port. The header it holds
+ * is static (the relay nonce); the token varies inside here, per request.
  *
  * The route is registered on the existing `ctx.webServer`, so this adds no
  * listener and no port. Under this deployment the gateway proxies the public
@@ -70,11 +70,11 @@ function fail(res, status, message) {
  * Create the relay handler.
  * @param ctx - plugin context, for its logger.
  * @param config - the validated row configuration.
- * @param authorizer - the token owner.
+ * @param tokens - the token owner.
  * @param nonce - the per-process value a caller must present.
  * @returns the route handler.
  */
-export function createRelay(ctx, config, authorizer, nonce) {
+export function createRelay(ctx, config, tokens, nonce) {
   /**
    * Forward one request upstream with the given bearer token.
    * @param req - the incoming request.
@@ -113,9 +113,11 @@ export function createRelay(ctx, config, authorizer, nonce) {
       return
     }
 
-    let token = await authorizer.bearer()
+    let token = await tokens.bearer()
     if (token === undefined) {
-      fail(res, 401, `ALMA is not connected for this workspace; open ${config.routes.connect} to sign in`)
+      // Answered here, without reaching ALMA: there is no token to send. The
+      // reason reaches the model as the tool call's error.
+      fail(res, 401, 'there is no live Compliance SSO session for this user; they must sign in again to use ALMA')
       return
     }
 
@@ -126,16 +128,25 @@ export function createRelay(ctx, config, authorizer, nonce) {
     try {
       let upstream = await forward(req, body, token, controller.signal)
       if (upstream.status === 401) {
-        // The token was refused although it looked fresh — a rotation on their
-        // side, or a clock we cannot see. One forced refresh, one retry; a
-        // second 401 is a real refusal and travels back as itself.
+        // The token was refused although it looked fresh — revoked on the
+        // provider's side, or a clock we cannot see. One forced renewal, one
+        // retry; a second 401 is a real refusal and travels back as itself.
         await upstream.body?.cancel()
-        token = await authorizer.bearer({ force: true })
+        token = await tokens.bearer({ force: true })
         if (token === undefined) {
-          fail(res, 401, `ALMA refused this workspace's authorization; open ${config.routes.connect} to sign in again`)
+          fail(res, 401, 'ALMA refused the SSO token and it could not be renewed; the user must sign in again')
           return
         }
         upstream = await forward(req, body, token, controller.signal)
+        if (upstream.status === 401) {
+          // A freshly renewed token refused too is not an expiry: it is ALMA not
+          // accepting this issuer's tokens at all — an audience, issuer or
+          // client mismatch. Its challenge header names which.
+          ctx.logger.warn(
+            'alma-mcp: ALMA refused a freshly renewed SSO token; www-authenticate: %s',
+            upstream.headers.get('www-authenticate') ?? '(none)',
+          )
+        }
       }
 
       const headers = {}

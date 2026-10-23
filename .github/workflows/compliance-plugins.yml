@@ -74,6 +74,11 @@ jobs:
             node "plugins/$plugin/tests/smoke.mjs" || status=1
             echo "::endgroup::"
           done
+          # The gate and the session store use TypeScript parameter properties,
+          # which plain type stripping rejects; the transform mode loads them.
+          echo "::group::sso-auth broker"
+          node --experimental-transform-types plugins/sso-auth/tests/broker.mjs || status=1
+          echo "::endgroup::"
           exit "$status"
 
       # The artifact frame's opaque origin is a security property, and asserting

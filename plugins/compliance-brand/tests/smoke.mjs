@@ -181,7 +181,7 @@ await check('index injections: config global, stylesheet, favicon, then the pre-
 
 await check('the tab title is rewritten', () => {
   assert.equal(host.taps.length, 1)
-  assert.equal(host.taps[0]('<head><title>DSH Local Build</title></head>'), '<head><title>Compliance AI</title></head>')
+  assert.equal(host.taps[0]('<head><title>DSH Local Build</title></head>'), '<head><title>Compliance Harness</title></head>')
 })
 
 await check('the pre-paint script applies a saved extra theme and ignores anything else', () => {

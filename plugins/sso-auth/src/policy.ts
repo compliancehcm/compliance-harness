@@ -45,8 +45,11 @@ const ADMIN_METHODS: ReadonlySet<string> = new Set([
  *
  * `dynamicCordisRunner` approves and evaluates dynamically defined plugin code —
  * the most dangerous namespace on the wire, and it ships in the web composition.
+ * `pluginManager` installs packages with pnpm and switches bundles and rows on
+ * and off in the backend's profile; its sidebar page is removed from the user
+ * role, and this is what stops a crafted call from reaching it anyway.
  */
-const ADMIN_NAMESPACES: ReadonlySet<string> = new Set(['dynamicCordisRunner', 'pluginInventory'])
+const ADMIN_NAMESPACES: ReadonlySet<string> = new Set(['dynamicCordisRunner', 'pluginInventory', 'pluginManager'])
 
 /**
  * Settings namespaces an ordinary user may read and write.

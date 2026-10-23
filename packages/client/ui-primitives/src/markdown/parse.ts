@@ -13,8 +13,8 @@ import { fromMarkdown } from 'mdast-util-from-markdown'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { mathFromMarkdown } from 'mdast-util-math'
 import { gfm } from 'micromark-extension-gfm'
-import { math } from 'micromark-extension-math'
 import { cjkFriendlyStrong } from './cjkFriendlyStrong.ts'
+import { dollarMath } from './dollarMath.ts'
 import { mathCompatibility } from './mathCompatibility.ts'
 
 /**
@@ -32,13 +32,14 @@ export function parseGfm(text: string): Root {
 
 /**
  * Parse GFM markdown plus TeX math with the compatibility delimiters
- * (the settled arm's grammar).
+ * (the settled arm's grammar). A dollar glued to a word (`R$`, `US$`) never
+ * opens inline math, so currency amounts stay prose.
  * @param text - Markdown source.
  * @returns The mdast root.
  */
 export function parseGfmWithMath(text: string): Root {
   return fromMarkdown(text, {
-    extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()],
+    extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), dollarMath()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
   })
 }

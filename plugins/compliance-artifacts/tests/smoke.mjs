@@ -23,7 +23,10 @@ import { apply, inject, name } from '../index.js'
 import { resolveConfig, ArtifactsConfigError, contentSecurityPolicy } from '../src/config.js'
 import { writeVersion, readMeta, readVersion, listArtifacts, listAllArtifacts, setArchived, newArtifactId, ArtifactStoreError } from '../src/store.js'
 import { applyPatch } from '../src/tool.js'
-import { parseArtifactPath, withDesignSystem } from '../src/route.js'
+import { parseArtifactPath, withDesignSystem, withEcharts } from '../src/route.js'
+import { loadBundle } from '../../compliance-echarts/src/asset.js'
+import { gunzipSync } from 'node:zlib'
+import { request as httpRequest } from 'node:http'
 import { loadDesignSystem } from '../../compliance-brand/src/design-system.js'
 import { artifactsSkill } from '../src/skill.js'
 
@@ -502,7 +505,8 @@ await check('the components marker becomes the inline React components script', 
     { title: 'Painel', html: PAGE }, { agent: { session: { id: SESSION } } })
 
   await check('the route serves the page with the design system; the stored file stays as written', async () => {
-    const response = await fetch(`${served.origin}/artifacts/${SESSION}/${made.artifactId}/latest?theme=compliance-light`)
+    const response = await fetch(`${served.origin}/artifacts/${SESSION}/${made.artifactId}/latest?theme=compliance-light`,
+      { headers: { 'accept-encoding': 'identity' } })
     assert.equal(response.status, 200)
     const body = await response.text()
     assert.ok(body.includes('<style data-compliance-ds='))
@@ -538,6 +542,75 @@ await check('the components marker becomes the inline React components script', 
   })
   await late.close()
   rmSync(dsRoot, { recursive: true, force: true })
+}
+
+// ------------------------------------------------------------- ECharts inline
+
+{
+  const bundle = loadBundle()
+  const echartsService = { assetPath: '/charts/echarts.js', etag: bundle.etag, source: () => bundle.raw.toString('utf8') }
+  const CHART_PAGE = '<!DOCTYPE html><html><head></head><body><div id="g"></div>'
+    + '<script src="/echarts/echarts.min.js"></script><script>echarts.init(document.getElementById("g"))</script></body></html>'
+
+  await check('a page naming the ECharts path gets the vendored bundle inline, once', () => {
+    const out = withEcharts(CHART_PAGE.replace('</body>', '<script defer src="/charts/echarts.js?v=2"></script></body>'), echartsService)
+    assert.equal(out.match(/data-compliance-lib="echarts"/g)?.length, 1, 'the configured and the default path both count, inlined once')
+    assert.doesNotMatch(out, /<script[^>]*\bsrc=/, 'no external script tag is left behind')
+    assert.ok(out.includes(bundle.raw.toString('utf8').slice(0, 200)))
+    assert.ok(out.indexOf('data-compliance-lib') < out.indexOf('echarts.init'), 'in place, before the page script that uses it')
+  })
+
+  await check('other scripts are left alone, and a bundle cannot close its own element', () => {
+    const cdn = '<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>'
+    assert.equal(withEcharts(cdn, echartsService), cdn)
+    assert.equal(withEcharts('<p>sem gráfico</p>', echartsService), '<p>sem gráfico</p>')
+    const hostile = withEcharts('<script src="/echarts/echarts.min.js"></script>',
+      { ...echartsService, source: () => 'var s = "</script><script>alert(1)//<!--"' })
+    assert.equal(hostile.match(/<\/script/gi)?.length, 1, 'only the element\'s own closing tag remains')
+  })
+
+  const root = mkdtempSync(join(tmpdir(), 'artifacts-echarts-'))
+  const served = await createFakeCtx({ services: { complianceEcharts: echartsService } })
+  apply(served.ctx, { root, designSystem: false })
+  const made = await served.tools.get('create_artifact').execute(
+    { title: 'Gráfico', html: CHART_PAGE }, { agent: { session: { id: SESSION } } })
+  const url = `${served.origin}/artifacts/${SESSION}/${made.artifactId}/latest`
+
+  await check('the route inlines the bundle and gzips the result for a browser that accepts it', async () => {
+    const raw = await new Promise((resolve, reject) => {
+      httpRequest(url, { headers: { 'accept-encoding': 'gzip' } }, (res) => {
+        const chunks = []
+        res.on('data', chunk => chunks.push(chunk))
+        res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }))
+      }).on('error', reject).end()
+    })
+    assert.equal(raw.headers['content-encoding'], 'gzip')
+    assert.equal(Number(raw.headers['content-length']), raw.body.byteLength)
+    assert.match(raw.headers['vary'], /accept-encoding/)
+    const html = gunzipSync(raw.body).toString('utf8')
+    assert.ok(html.includes('data-compliance-lib="echarts"'))
+    assert.ok(raw.body.byteLength < Buffer.byteLength(html) / 2, 'the megabyte goes over the wire compressed')
+  })
+
+  await check('the CSP is unchanged by the inlining: no self, no network', async () => {
+    const csp = (await fetch(url)).headers.get('content-security-policy')
+    assert.match(csp, /connect-src 'none'/)
+    assert.doesNotMatch(csp.split(';').find(part => part.trim().startsWith('script-src')), /'self'/)
+    assert.equal(csp, resolveConfig({}).csp)
+  })
+
+  await check('the stored version keeps the script tag exactly as the model wrote it', async () => {
+    assert.equal(await readVersion(resolveConfig({ root }), SESSION, made.artifactId, 1), CHART_PAGE)
+  })
+  await served.close()
+
+  const off = await createFakeCtx({ services: { complianceEcharts: echartsService } })
+  apply(off.ctx, { root, designSystem: false, inlineEcharts: false })
+  await check('inlineEcharts: false serves the script tag as written', async () => {
+    assert.equal(await (await fetch(`${off.origin}/artifacts/${SESSION}/${made.artifactId}/latest`)).text(), CHART_PAGE)
+  })
+  await off.close()
+  rmSync(root, { recursive: true, force: true })
 }
 
 // ----------------------------------------------------------------- client half
@@ -586,6 +659,45 @@ await check('the card reads the receipt from the result meta, not from the argum
   assert.equal(receiptOf({ argsRaw: '{"title":"x"}' }), null, 'a running call has no receipt yet')
   assert.equal(receiptOf({ kind: 'tool-result', isError: true, meta: {} }), null)
   assert.equal(receiptOf({ kind: 'tool-result', isError: false, meta: null }), null)
+})
+
+await check('the turn collects its artifacts for the tail, latest version once each', () => {
+  const { artifactsDefinition: definition, artifactsForClosing } = globalThis.__CLIENT_TEST__
+  const result = (seq, meta, extra = {}) => ({
+    type: 'tool/result', seq, surfaceOp: 'append',
+    data: { turn: 3, meta, message: { content: [{ isError: false }], source: { callId: `c${String(seq)}` } } },
+    ...extra,
+  })
+  const start = { type: 'turn/start', seq: 1, data: { turn: 3 } }
+  assert.deepEqual(definition.match(start), { id: '3', role: 'start' })
+  assert.equal(definition.match({ type: 'tool/result', seq: 2, surfaceOp: 'append', data: { turn: 3, meta: { other: 1 } } }), null,
+    'a result without an artifact receipt is not ours')
+  assert.equal(definition.match(result(2, { artifactId: 'a1', sessionId: 's1' }, { surfaceOp: undefined })), null,
+    'only results appended to the surface count')
+
+  let state = definition.start({}, { event: start })
+  for (const event of [
+    result(4, { artifactId: 'a1', sessionId: 's1', version: 1, title: 'Folha' }),
+    result(6, { artifactId: 'a2', sessionId: 's1', version: 1, title: 'Turnover' }),
+    result(8, { artifactId: 'a1', sessionId: 's1', version: 2, title: 'Folha' }),
+  ]) {
+    assert.deepEqual(definition.match(event), { id: '3', role: 'update' })
+    state = definition.update({ state }, { event })
+  }
+  const published = definition.buildLocationData({ state }, 'turn', null)
+  assert.equal(published.key, 'compliance-artifacts')
+  assert.deepEqual(published.value.map(entry => [entry.artifactId, entry.version]), [['a1', 2], ['a2', 1]])
+  assert.equal(definition.buildLocationData({ state }, 'turn', published), published, 'unchanged data keeps its identity')
+  assert.equal(definition.buildLocationData({ state }, 'step', null), null)
+  assert.equal(definition.buildLocationData({ state: definition.start({}, { event: start }) }, 'turn', null), null,
+    'a turn that made no artifact publishes nothing')
+
+  const turn = { data: new Map([['compliance-artifacts', published.value]]) }
+  assert.deepEqual(artifactsForClosing({ turn, seq: 7 }).map(entry => entry.artifactId), ['a2'],
+    'only what the turn made before its closing answer')
+  assert.equal(artifactsForClosing({ turn, seq: 99 }).length, 2)
+  assert.deepEqual(artifactsForClosing({ turn: { data: new Map() }, seq: 9 }), [])
+  assert.deepEqual(artifactsForClosing(undefined), [])
 })
 
 await check('the pending title tolerates half-streamed arguments', () => {

@@ -30,8 +30,12 @@ export const SERVICE_NAME = 'complianceDesignSystem'
 /** Global the client half reads the theme list and the storage key from. */
 const CONFIG_GLOBAL = '__COMPLIANCE_BRAND__'
 
-/** The product name in the browser tab. */
-const TAB_TITLE = 'Compliance AI'
+/**
+ * The product name in the browser tab before the shell mounts. Once it does, the
+ * shell owns `document.title` and writes the build's `DSH_CLIENT_TITLE`, which
+ * deploy/docker/Dockerfile sets to this same name — keep the two equal.
+ */
+const TAB_TITLE = 'Compliance Harness'
 
 /**
  * Mount the stylesheet, the assets, the service and the skill.

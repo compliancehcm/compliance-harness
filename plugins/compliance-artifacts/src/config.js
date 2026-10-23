@@ -38,12 +38,13 @@ const DEFAULTS = {
   maxVersions: 50,
   registerSkill: true,
   designSystem: true,
+  inlineEcharts: true,
 }
 
 /** Every field this plugin understands; anything else is a rejection. */
 const KNOWN_FIELDS = new Set([
   'routePath', 'createToolName', 'updateToolName',
-  'maxHtmlBytes', 'maxVersions', 'registerSkill', 'designSystem', 'root', 'allowedOrigins',
+  'maxHtmlBytes', 'maxVersions', 'registerSkill', 'designSystem', 'inlineEcharts', 'root', 'allowedOrigins',
 ])
 
 /** Raised when the row's config cannot be understood. Lists every problem at once. */
@@ -224,6 +225,7 @@ export function resolveConfig(input = {}) {
   const maxVersions = optionalPositiveInteger(raw, 'maxVersions', problems)
   const registerSkill = optionalBoolean(raw, 'registerSkill', problems)
   const designSystem = optionalBoolean(raw, 'designSystem', problems)
+  const inlineEcharts = optionalBoolean(raw, 'inlineEcharts', problems)
   const allowedOrigins = resolveOrigins(raw, problems)
 
   if (createToolName === updateToolName) {
@@ -242,7 +244,7 @@ export function resolveConfig(input = {}) {
 
   return {
     routePath, root, createToolName, updateToolName,
-    maxHtmlBytes, maxVersions, registerSkill, designSystem, allowedOrigins,
+    maxHtmlBytes, maxVersions, registerSkill, designSystem, inlineEcharts, allowedOrigins,
     csp: contentSecurityPolicy(allowedOrigins),
   }
 }

@@ -12,7 +12,9 @@
  *   src/route.js  one prefix route serving the document with its OWN CSP, which
  *                 is the whole reason it is a URL and not a `srcdoc` string —
  *                 and, when compliance-brand provides `complianceDesignSystem`,
- *                 with the Compliance HCM design system inlined at serve time.
+ *                 with the Compliance HCM design system inlined at serve time;
+ *                 when compliance-echarts provides `complianceEcharts`, with
+ *                 the vendored ECharts bundle inlined where the page names it.
  *   src/skill.js  the `artifacts` skill, so the model knows what the sandbox
  *                 silently refuses before it writes a page it cannot see.
  *
@@ -54,8 +56,20 @@ export function apply(ctx, rawConfig) {
     })
   }
 
+  // The vendored ECharts bundle, when compliance-echarts is composed, inlined
+  // into a page that names its path. Held the same way as the design system.
+  const echarts = { current: undefined }
+  if (config.inlineEcharts) {
+    ctx.inject(['complianceEcharts'], (scoped) => {
+      echarts.current = scoped.get('complianceEcharts')
+      scoped.effect(() => () => { echarts.current = undefined }, 'artifacts: echarts bundle')
+    })
+  }
+
   ctx.effect(
-    () => ctx.webServer.register({ kind: 'prefix', path: config.routePath, handler: artifactHandler(config, designSystem) }),
+    () => ctx.webServer.register({
+      kind: 'prefix', path: config.routePath, handler: artifactHandler(config, designSystem, echarts),
+    }),
     'artifacts: document route',
   )
 

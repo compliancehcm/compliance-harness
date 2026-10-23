@@ -1,18 +1,23 @@
 // A stand-in for the slice of the Cordis context this plugin uses: a webserver
-// with a real listener and the same route-matching rules, an in-memory
-// credential store with the seam's record semantics, effect collection, and a
-// ctx.plugin that records what would have been mounted.
+// with a real listener and the same route-matching rules, effect collection,
+// a ctx.plugin that records what would have been mounted, and an optional
+// skill registry behind ctx.get.
 import { createServer } from 'node:http'
 
-export async function createFakeCtx() {
+export async function createFakeCtx(options = {}) {
   const exact = new Map()
   const prefixes = new Map()
-  const records = new Map()
   const effects = []
   const listeners = new Map()
   const mounted = []
   const logs = []
-  let writeQueue = Promise.resolve()
+  const skills = []
+  const services = new Map(options.withSkills === false ? [] : [['skills', {
+    register(skill) {
+      skills.push(skill)
+      return () => { skills.splice(skills.indexOf(skill), 1) }
+    },
+  }]])
 
   const match = (pathname) => {
     const hit = exact.get(pathname)
@@ -54,26 +59,7 @@ export async function createFakeCtx() {
         return () => { table.delete(route.path) }
       },
     },
-    credentials: {
-      async resolve(ref) {
-        const value = process.env[ref]
-        return value === undefined || value === '' ? undefined : { value, source: 'environment' }
-      },
-      async readRecord(key) { return records.get(key) },
-      async deleteRecord(key) { records.delete(key) },
-      async modifyRecord(key, mutate) {
-        // Serialized, like the real store's cross-process exclusion.
-        const run = writeQueue.then(async () => {
-          const next = await mutate(records.get(key))
-          if (next === undefined) return records.get(key)
-          records.set(key, next)
-          return next
-        })
-        writeQueue = run.then(() => undefined, () => undefined)
-        return run
-      },
-      async listRecords() { return [...records.keys()].map(key => ({ key, kind: records.get(key).kind })) },
-    },
+    get(name) { return services.get(name) },
     effect(callback, label) {
       const disposer = callback()
       effects.push({ label, disposer })
@@ -98,8 +84,8 @@ export async function createFakeCtx() {
   return {
     ctx,
     origin: `http://127.0.0.1:${server.address().port}`,
-    records,
     mounted,
+    skills,
     logs,
     effects,
     emit(event, ...args) { for (const listener of listeners.get(event) ?? []) listener(...args) },

@@ -5,7 +5,7 @@
  * Loader cannot validate this row's `config` against a declared schema. The
  * validation therefore happens here, at load: every problem is collected and
  * reported in one throw, because a half-understood configuration would fail
- * later as an opaque OAuth or MCP error instead of as a boot error.
+ * later as an opaque authorization or MCP error instead of as a boot error.
  *
  * @module
  */
@@ -14,18 +14,16 @@
 const DEFAULTS = {
   serverName: 'alma',
   basePath: '/alma',
-  scopes: ['openid', 'profile'],
-  clientName: 'Compliance AI harness',
-  refreshSkewSeconds: 120,
+  refreshSkewSeconds: 30,
   toolCallTimeoutMs: 60_000,
   failOnStartupError: false,
+  registerSkill: true,
 }
 
 /** Every field this plugin understands; anything else is a rejection. */
 const KNOWN_FIELDS = new Set([
-  'mcpUrl', 'publicUrl', 'serverName', 'basePath', 'resolveMcpClientFrom',
-  'scopes', 'clientId', 'clientSecretEnv', 'clientName', 'refreshSkewSeconds',
-  'toolCallTimeoutMs', 'failOnStartupError',
+  'mcpUrl', 'serverName', 'basePath', 'resolveMcpClientFrom',
+  'refreshSkewSeconds', 'toolCallTimeoutMs', 'failOnStartupError', 'registerSkill',
 ])
 
 /** Raised when the row's config cannot be understood. Lists every problem at once. */
@@ -93,7 +91,6 @@ export function resolveConfig(input) {
   const problems = []
 
   const mcpUrl = requireUrl(raw, 'mcpUrl', problems)
-  const publicUrl = requireUrl(raw, 'publicUrl', problems)
   const resolveMcpClientFrom = requireString(raw, 'resolveMcpClientFrom', problems)
 
   const serverNameRaw = raw['serverName']
@@ -115,49 +112,6 @@ export function resolveConfig(input) {
       problems.push('basePath must be an absolute path with no trailing slash, e.g. /alma')
     } else {
       basePath = basePathRaw
-    }
-  }
-
-  const scopesRaw = raw['scopes']
-  let scopes = DEFAULTS.scopes
-  if (scopesRaw !== undefined) {
-    if (!Array.isArray(scopesRaw) || scopesRaw.length === 0 || scopesRaw.some(entry => typeof entry !== 'string')) {
-      problems.push('scopes must be a non-empty array of strings')
-    } else {
-      scopes = scopesRaw
-    }
-  }
-
-  const clientIdRaw = raw['clientId']
-  let clientId
-  if (clientIdRaw !== undefined) {
-    if (typeof clientIdRaw !== 'string' || clientIdRaw.trim() === '') {
-      problems.push('clientId, when given, must be a non-empty string')
-    } else {
-      clientId = clientIdRaw.trim()
-    }
-  }
-
-  const secretEnvRaw = raw['clientSecretEnv']
-  let clientSecretEnv
-  if (secretEnvRaw !== undefined) {
-    if (typeof secretEnvRaw !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(secretEnvRaw)) {
-      problems.push('clientSecretEnv must be an environment-variable name, not a secret value')
-    } else {
-      clientSecretEnv = secretEnvRaw
-    }
-  }
-  if (clientSecretEnv !== undefined && clientId === undefined) {
-    problems.push('clientSecretEnv without clientId: a secret belongs to a pinned client registration')
-  }
-
-  const clientNameRaw = raw['clientName']
-  let clientName = DEFAULTS.clientName
-  if (clientNameRaw !== undefined) {
-    if (typeof clientNameRaw !== 'string' || clientNameRaw.trim() === '') {
-      problems.push('clientName, when given, must be a non-empty string')
-    } else {
-      clientName = clientNameRaw.trim()
     }
   }
 
@@ -191,6 +145,16 @@ export function resolveConfig(input) {
     }
   }
 
+  const skillRaw = raw['registerSkill']
+  let registerSkill = DEFAULTS.registerSkill
+  if (skillRaw !== undefined) {
+    if (typeof skillRaw !== 'boolean') {
+      problems.push('registerSkill must be a boolean')
+    } else {
+      registerSkill = skillRaw
+    }
+  }
+
   for (const key of Object.keys(raw)) {
     // An ignored key reads as "the setting I wrote took effect", so an unknown
     // one is a rejection rather than a warning.
@@ -201,24 +165,16 @@ export function resolveConfig(input) {
 
   return {
     mcpUrl,
-    publicUrl,
     resolveMcpClientFrom,
     serverName,
     basePath,
-    scopes,
-    ...clientId !== undefined && { clientId },
-    ...clientSecretEnv !== undefined && { clientSecretEnv },
-    clientName,
     refreshSkewSeconds,
     toolCallTimeoutMs,
     failOnStartupError,
+    registerSkill,
     routes: {
-      connect: `${basePath}/connect`,
-      callback: `${basePath}/callback`,
       status: `${basePath}/status`,
-      disconnect: `${basePath}/disconnect`,
       relay: `${basePath}/mcp`,
     },
-    redirectUri: `${publicUrl}${basePath}/callback`,
   }
 }

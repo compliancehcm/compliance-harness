@@ -14,6 +14,9 @@
 //      app's origin rests on.
 //   4. The CSP blocks a script host that is not on the allowlist, while allowing
 //      one that is.
+//   5. A chart page renders ECharts with NO CDN on the allowlist and no route
+//      serving the bundle: the library arrives inline, from compliance-echarts'
+//      vendored copy, and nothing is fetched for it.
 //
 // This owns its own composition: one http listener serving both the plugin's
 // route handler and a small embedder page, so the frame and its parent share an
@@ -37,6 +40,7 @@ import { resolveConfig } from '../src/config.js'
 import { artifactHandler } from '../src/route.js'
 import { loadDesignSystem } from '../../compliance-brand/src/design-system.js'
 import { writeVersion } from '../src/store.js'
+import { loadBundle } from '../../compliance-echarts/src/asset.js'
 
 const WEB_APP = fileURLToPath(new URL('../../../apps/web/package.json', import.meta.url))
 const webRequire = createRequire(WEB_APP)
@@ -105,7 +109,37 @@ const DS_PAGE = `<!DOCTYPE html>
 </script>
 </body></html>`
 
+// The skeleton the artifacts skill teaches, verbatim in its moving parts: the
+// local script tag, the typeof guard, colours from the tokens, ResizeObserver.
+const CHART_PAGE = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Gráfico</title></head>
+<body>
+<div class="ds-card"><div id="grafico" style="height:240px;width:480px"></div></div>
+<p id="estado">?</p>
+<script src="/echarts/echarts.min.js"></script>
+<script>
+  const el = document.getElementById("grafico");
+  if (typeof echarts === "undefined") {
+    document.getElementById("estado").textContent = "sem-echarts";
+  } else {
+    const chart = echarts.init(el);
+    const css = getComputedStyle(document.documentElement);
+    const t = (nome) => css.getPropertyValue(nome).trim();
+    chart.setOption({
+      color: [t("--primary")],
+      grid: { top: 16, left: 8, right: 16, bottom: 8, containLabel: true },
+      xAxis: { type: "category", data: ["Jan", "Fev"] },
+      yAxis: { type: "value" },
+      series: [{ type: "bar", data: [1200, 1350] }],
+    });
+    new ResizeObserver(() => chart.resize()).observe(el);
+    document.getElementById("estado").textContent = "echarts " + echarts.version;
+  }
+</script>
+</body></html>`
+
 await writeVersion(config, SESSION, ARTIFACT, PAGE, 'Artefato')
+await writeVersion(config, SESSION, 'grafico0001', CHART_PAGE, 'Gráfico')
 await writeVersion(config, SESSION, 'dspage00001', DS_PAGE, 'Painel')
 await writeVersion(config, SESSION, 'bloqueada001', BLOCKED_PAGE, 'Bloqueada')
 
@@ -114,8 +148,28 @@ const handler = artifactHandler(config)
 // as compliance-brand provides it.
 const dsConfig = resolveConfig({ root, routePath: '/ds', allowedOrigins: ['https://cdn.jsdelivr.net'] })
 const dsHandler = artifactHandler(dsConfig, { current: loadDesignSystem() })
+// A route with NO CDN on the allowlist and both services composed, as a closed
+// corporate network would run it. Nothing in this server serves the bundle.
+const bundle = loadBundle()
+const chartConfig = resolveConfig({ root, routePath: '/grafico', allowedOrigins: [] })
+const chartHandler = artifactHandler(chartConfig, { current: loadDesignSystem() }, {
+  current: { assetPath: '/echarts/echarts.min.js', etag: bundle.etag, source: () => bundle.raw.toString('utf8') },
+})
+/** Every path the browser asked for, so the chart check can prove nothing fetched the bundle. */
+const requested = []
 const server = createServer((req, res) => {
   const pathname = new URL(req.url, 'http://x').pathname
+  requested.push(pathname)
+  if (pathname === '/chart-embed') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'set-cookie': 'sessao=segredo; Path=/; SameSite=Lax' })
+    res.end(`<!DOCTYPE html><html><body><iframe id="f" src="/grafico/${SESSION}/grafico0001/latest"
+      sandbox="allow-scripts allow-popups allow-modals" style="width:600px;height:400px"></iframe></body></html>`)
+    return
+  }
+  if (pathname.startsWith('/grafico/')) {
+    Promise.resolve(chartHandler(req, res)).catch(() => { if (!res.headersSent) { res.writeHead(500); res.end() } })
+    return
+  }
   if (pathname === '/embed-ds') {
     const theme = new URL(req.url, 'http://x').searchParams.get('theme')
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -220,6 +274,47 @@ try {
     await page.emulateMedia({ colorScheme: 'light' })
     const alma = await dsFrame('?theme=alma-dark')
     assert.equal(await style(alma, 'body', 'backgroundColor'), 'rgb(8, 17, 32)', 'alma-dark --background')
+  })
+
+  await check('a chart page renders ECharts with no CDN allowed and no route serving the bundle', async () => {
+    const violations = []
+    page.on('console', (message) => { if (/Content Security Policy/i.test(message.text())) violations.push(message.text()) })
+    requested.length = 0
+    await page.goto(`${origin}/chart-embed`, { waitUntil: 'networkidle' })
+    const frame = page.frames().find(candidate => candidate.url().includes('/grafico/'))
+    assert.ok(frame !== undefined, 'the chart frame loaded')
+    await frame.waitForFunction(() => document.getElementById('estado').textContent !== '?')
+    assert.match(await frame.textContent('#estado'), /^echarts 6\./, 'the vendored ECharts 6 ran inside the sandbox')
+    const drawn = await frame.evaluate(() => {
+      const el = document.getElementById('grafico')
+      const chart = echarts.getInstanceByDom(el)
+      const canvas = el.querySelector('canvas')
+      return {
+        series: chart.getOption().series[0].data,
+        color: chart.getOption().color[0],
+        primary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(),
+        canvasWidth: canvas === null ? 0 : canvas.width,
+        cssWidth: canvas === null ? 0 : canvas.getBoundingClientRect().width,
+      }
+    })
+    assert.deepEqual(drawn.series, [1200, 1350])
+    assert.ok(drawn.primary !== '' && drawn.color === drawn.primary, 'the colour came from the design-system token')
+    assert.ok(drawn.canvasWidth >= drawn.cssWidth && drawn.cssWidth > 0, 'drawn at device resolution, not a hand-sized canvas')
+    assert.equal(requested.filter(path => path.includes('echarts')).length, 0, 'nothing fetched the bundle')
+    assert.deepEqual(violations, [], 'no CSP violation on the way')
+  })
+
+  await check('the chart page keeps the sandbox: no cookie, no storage, no network', async () => {
+    const frame = page.frames().find(candidate => candidate.url().includes('/grafico/'))
+    const reach = await frame.evaluate(async () => {
+      const out = {}
+      try { out.cookie = document.cookie } catch { out.cookie = 'negado' }
+      try { localStorage.setItem('x', '1'); out.storage = 'aberto' } catch { out.storage = 'negado' }
+      try { await fetch('/artifacts/index'); out.fetch = 'aberto' } catch { out.fetch = 'negado' }
+      out.origin = window.origin
+      return out
+    })
+    assert.deepEqual(reach, { cookie: 'negado', storage: 'negado', fetch: 'negado', origin: 'null' })
   })
 } finally {
   await browser.close()

@@ -226,6 +226,13 @@ html body [class*="_sidebarCol"] [class*="_sessionRow"][class*="_selected"] {
   font-weight: var(--weight-semibold);
 }
 
+/* The open workspace's folder glyph. ui-workspace paints it in the business
+   primary, which in Padrão is the very navy of --nav-bg — the icon vanished
+   into the rail. The strong nav ink is legible on every theme's rail. */
+html body [class*="_sidebarCol"] [class*="_folderActive"] {
+  color: var(--nav-fg-strong);
+}
+
 /* New Session is the one call to action on the rail: the nav's high-emphasis
    pair (`--nav-badge-bg` / `--nav-badge-fg` — white on navy in Padrão, amber
    in Escuro, the primary in the light themes). The collapsed rail keeps its

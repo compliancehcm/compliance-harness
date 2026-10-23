@@ -52,6 +52,11 @@ export interface Session {
    * their next login, or when the session hits its absolute TTL.
    */
   readonly admin: boolean
+  /**
+   * The current access token. It never reaches the browser; the token broker
+   * hands it to this user's own backend, which presents it to ALMA.
+   */
+  accessToken: string
   /** Refresh token, when the issuer granted one; absent disables renewal. */
   refreshToken?: string
   /** The id_token, retained only as the `id_token_hint` for RP-initiated logout. */
@@ -126,6 +131,7 @@ export class SessionStore {
   create(
     principal: Principal,
     tokens: {
+      readonly accessToken: string
       readonly expiresInSeconds: number
       readonly refreshToken?: string
       readonly idToken?: string
@@ -137,6 +143,7 @@ export class SessionStore {
       id: randomId(),
       principal,
       admin: tokens.admin ?? false,
+      accessToken: tokens.accessToken,
       ...tokens.refreshToken !== undefined && { refreshToken: tokens.refreshToken },
       ...tokens.idToken !== undefined && { idToken: tokens.idToken },
       accessExpiresAt: at + tokens.expiresInSeconds * 1000,
@@ -188,11 +195,33 @@ export class SessionStore {
     return session
   }
 
+  /**
+   * The live session of a user that was used most recently, without marking it.
+   *
+   * A user may hold several sessions — two browsers, a phone — and any of them
+   * carries a token for the same subject. The most recently used one is the one
+   * least likely to be about to idle out.
+   *
+   * @param subject - the `sub` claim.
+   * @returns that session, or undefined when the user holds no live one.
+   */
+  latestFor(subject: string): Session | undefined {
+    const at = this.now()
+    let latest: Session | undefined
+    for (const session of this.sessions.values()) {
+      if (session.principal.subject !== subject) continue
+      if (at >= session.absoluteDeadline || at - session.lastSeenAt >= this.idleTimeoutMs) continue
+      if (latest === undefined || session.lastSeenAt > latest.lastSeenAt) latest = session
+    }
+    return latest
+  }
+
   /** Record the outcome of a token renewal on a live session. */
   renewed(
     session: Session,
-    tokens: { readonly expiresInSeconds: number; readonly refreshToken?: string },
+    tokens: { readonly accessToken: string; readonly expiresInSeconds: number; readonly refreshToken?: string },
   ): void {
+    session.accessToken = tokens.accessToken
     session.accessExpiresAt = this.now() + tokens.expiresInSeconds * 1000
     if (tokens.refreshToken !== undefined) session.refreshToken = tokens.refreshToken
   }

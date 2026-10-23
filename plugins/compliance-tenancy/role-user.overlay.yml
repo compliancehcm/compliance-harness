@@ -21,6 +21,11 @@
 - id: ui-settings-plugins
   disabled: true
 
+# The sidebar Plugins page, which installs, enables and removes the profile's
+# bundles. The gateway refuses the `pluginManager` namespace behind it.
+- id: ui-plugin-manager
+  disabled: true
+
 # The read-only Loader inventory tab.
 - id: ui-settings-plugin-inventory
   disabled: true
