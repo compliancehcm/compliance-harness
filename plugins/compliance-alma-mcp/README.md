@@ -45,6 +45,8 @@ run can call ALMA long after the browser's last request.
 | `src/relay.js` | The authenticating loopback hop the MCP client talks to |
 | `src/routes.js` | `/alma/status`, for diagnosis |
 | `src/mcp.js` | Mounts one `@deepseek-ai/dsh-mcp-client` instance over that relay |
+| `src/skill.js` | Registers the `alma-hcm` skill, with a short note on this harness prepended |
+| `skills/alma-hcm/SKILL.md` | ALMA's own guide to its tools, verbatim |
 
 There is no browser half: nothing is left for a human to click.
 
@@ -107,6 +109,7 @@ session alive whose browser tab was closed.
 | `refreshSkewSeconds` | no | Ask the broker again this long before the cached token's expiry, default 30. Keep it under 60: the gateway renews a token with less than 60s left before handing it out, so a larger value would make every request ask again |
 | `toolCallTimeoutMs` | no | Cap on one ALMA tool call, default 60000 |
 | `failOnStartupError` | no | Fail the boot when the tools cannot be mounted — including when there is no broker — default false |
+| `registerSkill` | no | Register the `alma-hcm` skill alongside the tools, default true |
 
 An unknown field is a rejection, not a warning: a silently ignored key reads as
 "the setting I wrote took effect". That includes the fields of the OAuth flow
@@ -164,6 +167,30 @@ comes back, a burst of requests sharing one broker call, and a process with no
 broker. The gate's side (which session, when it renews, renewals deduplicated)
 is `plugins/sso-auth/tests/broker.mjs`.
 
+## The `alma-hcm` skill
+
+`skills/alma-hcm/SKILL.md` is the guide the system that manages ALMA's MCP server
+wrote for agents using it: the ID resolution chain (`get_empresas` →
+`emprusu_id` → `get_trabalhadores` → `colaborador_id`), exporting to CSV instead
+of paginating, the homonym disambiguation contract, payroll arithmetic, and
+which tool answers which question. Without it the model has the tool schemas
+and nothing about how they fit together.
+
+The file is kept **verbatim**, so a new version from ALMA replaces it whole. What
+it cannot know about this harness is prepended at registration by
+`src/skill.js`: tools are named `mcp__<serverName>__<tool>` here, and the
+authorization is the SSO login, so a token error means signing in again.
+
+It is registered only when the tools are mounted — a guide to tools the model
+cannot see would mislead it — and only when the composition has a skill
+registry.
+
+The skill catalog shows at most 500 characters of a description by default
+(`tool-skill`'s `catalogDescriptionMaxLength`). ALMA's is about 700, so the
+catalog drops its closing list of example requests; the opening sentence, which
+already says to use it for any HR or payroll query, survives. The whole text is
+there once the skill is loaded.
+
 ## Model Experience
 
 ### The ALMA tools
@@ -178,7 +205,8 @@ session, a call fails with an error saying they must sign in again.
 #### Token effect
 
 The advertised schemas are paid for on every request while the tools are
-registered, which is the life of the backend.
+registered, which is the life of the backend. The `alma-hcm` skill adds one
+catalog line; its body (about 37 KB) is paid for only in a session that loads it.
 
 #### KV Cache effect
 

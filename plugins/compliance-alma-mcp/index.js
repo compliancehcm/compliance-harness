@@ -30,6 +30,7 @@ import { resolveConfig } from './src/config.js'
 import { createConnection } from './src/mcp.js'
 import { createRelay } from './src/relay.js'
 import { createStatusRoute } from './src/routes.js'
+import { almaSkill } from './src/skill.js'
 import { createTokenSource, readBroker, TOKEN_URL_ENV } from './src/sso-token.js'
 
 /** Cordis plugin name. */
@@ -81,6 +82,21 @@ export async function apply(ctx, rawConfig) {
   }, 'alma-mcp: routes')
 
   ctx.effect(() => () => { void connection.release() }, 'alma-mcp: mcp client')
+
+  // ALMA's own guide to its tools — ID resolution, export over pagination,
+  // homonym disambiguation, payroll arithmetic. Only where the tools can exist:
+  // a guide to tools the model cannot see would only mislead it. Optional, as in
+  // the other compliance plugins: a composition without the skill registry
+  // still gets the tools.
+  if (config.registerSkill) {
+    const skills = ctx.get('skills')
+    if (skills === undefined) {
+      ctx.logger.warn('alma-mcp: no skill registry in this composition; the alma-hcm skill is not available')
+    } else {
+      const skill = almaSkill(config.serverName)
+      ctx.effect(() => skills.register(skill), 'alma-mcp: alma-hcm skill')
+    }
+  }
 
   // Mounted at boot: a backend is started by its user's first request through
   // the gate, so a live session — and with it a token — exists by construction.

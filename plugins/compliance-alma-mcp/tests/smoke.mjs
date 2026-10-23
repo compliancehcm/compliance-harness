@@ -24,6 +24,7 @@ import { apply, name, inject } from '../index.js'
 import { RELAY_HEADER } from '../src/relay.js'
 import { resolveConfig } from '../src/config.js'
 import { TOKEN_KEY_ENV, TOKEN_URL_ENV } from '../src/sso-token.js'
+import { readFileSync } from 'node:fs'
 
 /** The repository root, three levels up from this file. */
 const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, '')
@@ -116,6 +117,22 @@ check('the mounted client never gives up reconnecting', () => {
 })
 check('the mounted module is the real mcp-client plugin', () => {
   assert.equal(harness.mounted[0].plugin.name, 'mcp-client')
+})
+
+check('the alma-hcm skill is registered with the mounted tools', () => {
+  assert.equal(harness.skills.length, 1)
+  const [skill] = harness.skills
+  assert.equal(skill.name, 'alma-hcm')
+  assert.match(skill.description, /^Guia operacional das ferramentas MCP de HCM da Alma/)
+  assert.equal(skill.resourceBase.kind, 'directory')
+})
+check('the skill body is ALMA\'s guide verbatim, behind a note naming this harness\'s tool prefix', () => {
+  const [skill] = harness.skills
+  const file = readFileSync(skill.path, 'utf8')
+  const body = file.slice(file.indexOf('\n---\n', 4) + 5).trim()
+  assert.ok(skill.content.endsWith(body), 'the guide itself is not edited')
+  assert.ok(skill.content.startsWith('> **Neste harness.**'))
+  assert.match(skill.content.slice(0, skill.content.indexOf(body)), /`mcp__alma__get_empresas`/)
 })
 
 const relayUnauthorized = await get('/alma/mcp', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } })
@@ -212,7 +229,29 @@ check('the status route still answers without a broker', () => {
   assert.equal(sharedStatus.mounted, false)
   assert.equal(sharedStatus.source, 'none')
 })
+check('without a broker there are no tools, so there is no guide to them either', () => {
+  assert.equal(shared.skills.length, 0)
+})
 await shared.close()
+
+process.env[TOKEN_URL_ENV] = brokerUrl
+process.env[TOKEN_KEY_ENV] = BACKEND_KEY
+const noRegistry = await createFakeCtx({ withSkills: false })
+await apply(noRegistry.ctx, { mcpUrl: alma.mcpUrl, resolveMcpClientFrom: `${REPO_ROOT}/apps/cli` })
+check('a composition without a skill registry still mounts the tools and says why the skill is missing', () => {
+  assert.equal(noRegistry.mounted.length, 1)
+  assert.ok(noRegistry.logs.some(([level, line]) => level === 'warn' && line.includes('alma-hcm')))
+})
+await noRegistry.close()
+const optedOut = await createFakeCtx()
+await apply(optedOut.ctx, { mcpUrl: alma.mcpUrl, resolveMcpClientFrom: `${REPO_ROOT}/apps/cli`, registerSkill: false })
+check('registerSkill: false keeps the tools and drops the skill', () => {
+  assert.equal(optedOut.mounted.length, 1)
+  assert.equal(optedOut.skills.length, 0)
+})
+await optedOut.close()
+delete process.env[TOKEN_URL_ENV]
+delete process.env[TOKEN_KEY_ENV]
 
 const strict = await createFakeCtx()
 let strictError

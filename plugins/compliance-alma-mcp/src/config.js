@@ -17,12 +17,13 @@ const DEFAULTS = {
   refreshSkewSeconds: 30,
   toolCallTimeoutMs: 60_000,
   failOnStartupError: false,
+  registerSkill: true,
 }
 
 /** Every field this plugin understands; anything else is a rejection. */
 const KNOWN_FIELDS = new Set([
   'mcpUrl', 'serverName', 'basePath', 'resolveMcpClientFrom',
-  'refreshSkewSeconds', 'toolCallTimeoutMs', 'failOnStartupError',
+  'refreshSkewSeconds', 'toolCallTimeoutMs', 'failOnStartupError', 'registerSkill',
 ])
 
 /** Raised when the row's config cannot be understood. Lists every problem at once. */
@@ -144,6 +145,16 @@ export function resolveConfig(input) {
     }
   }
 
+  const skillRaw = raw['registerSkill']
+  let registerSkill = DEFAULTS.registerSkill
+  if (skillRaw !== undefined) {
+    if (typeof skillRaw !== 'boolean') {
+      problems.push('registerSkill must be a boolean')
+    } else {
+      registerSkill = skillRaw
+    }
+  }
+
   for (const key of Object.keys(raw)) {
     // An ignored key reads as "the setting I wrote took effect", so an unknown
     // one is a rejection rather than a warning.
@@ -160,6 +171,7 @@ export function resolveConfig(input) {
     refreshSkewSeconds,
     toolCallTimeoutMs,
     failOnStartupError,
+    registerSkill,
     routes: {
       status: `${basePath}/status`,
       relay: `${basePath}/mcp`,

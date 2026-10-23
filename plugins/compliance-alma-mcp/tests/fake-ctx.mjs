@@ -1,15 +1,23 @@
 // A stand-in for the slice of the Cordis context this plugin uses: a webserver
 // with a real listener and the same route-matching rules, effect collection,
-// and a ctx.plugin that records what would have been mounted.
+// a ctx.plugin that records what would have been mounted, and an optional
+// skill registry behind ctx.get.
 import { createServer } from 'node:http'
 
-export async function createFakeCtx() {
+export async function createFakeCtx(options = {}) {
   const exact = new Map()
   const prefixes = new Map()
   const effects = []
   const listeners = new Map()
   const mounted = []
   const logs = []
+  const skills = []
+  const services = new Map(options.withSkills === false ? [] : [['skills', {
+    register(skill) {
+      skills.push(skill)
+      return () => { skills.splice(skills.indexOf(skill), 1) }
+    },
+  }]])
 
   const match = (pathname) => {
     const hit = exact.get(pathname)
@@ -51,6 +59,7 @@ export async function createFakeCtx() {
         return () => { table.delete(route.path) }
       },
     },
+    get(name) { return services.get(name) },
     effect(callback, label) {
       const disposer = callback()
       effects.push({ label, disposer })
@@ -76,6 +85,7 @@ export async function createFakeCtx() {
     ctx,
     origin: `http://127.0.0.1:${server.address().port}`,
     mounted,
+    skills,
     logs,
     effects,
     emit(event, ...args) { for (const listener of listeners.get(event) ?? []) listener(...args) },
