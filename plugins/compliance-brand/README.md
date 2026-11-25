@@ -71,11 +71,20 @@ Classes ship as `<hash>_<localName>`: the hash changes every build, but the
 local name changes only when upstream renames the class. Re-check these rules
 after an upstream jump.
 
-**Buttons.** The upstream Button primitive is a capsule (18px radius, weight
-400). `app.css` restyles it to the design system's button: 8px radius, 600
-weight on the solid variant, and 500 at the small size. The outline variant
-becomes the DS secondary button: `--card` with a `--border` hairline. The rules
-match `<hash>_button` together with the variant class.
+Row state is read from ARIA, not from a state class: the current panel is
+`aria-current="page"` (the pill goes on the row's wrapper, which upstream
+paints), and the open session is `aria-selected="true"`. Upstream's upgrade
+guide asks consumers to prefer `data-*` and ARIA hooks to generated class names.
+
+**Buttons** keep upstream's geometry. The Button primitive has no stable variant
+hook, and an earlier class-keyed restyle never matched before dsh 0.2 (static
+libraries then shipped `_<local>_<hash>` names), so it was dropped rather than
+switched on. Button colours already follow the token bridge.
+
+**Font.** The bridge sets `--dsh-font-family-text-default` to the theme's
+`--font`, not `--dsw-font-family`. ui-theme composes `--dsw-font-family` from
+the user's Settings font list first and that default second, so Inter (Oracle
+Sans under Redwood) is the default and the font picker still works.
 
 ## Themes
 

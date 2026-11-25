@@ -14,8 +14,11 @@
 
 html body,
 html body[data-ds-dark-theme] {
-  /* Type — Inter (Oracle Sans under Redwood, through the theme's --font). */
-  --dsw-font-family: var(--font);
+  /* Type — Inter (Oracle Sans under Redwood, through the theme's --font) is
+     the DEFAULT stack, not a fixed one. ui-theme's base.css composes
+     --dsw-font-family on body as the user's Settings font list, then this
+     default; declaring --dsw-font-family here would hide the font picker. */
+  --dsh-font-family-text-default: var(--font);
 
   /* Surfaces. Flat: page is --background, every raised surface is --card. */
   --dsw-alias-bg-base: var(--background);
@@ -112,7 +115,6 @@ html body[data-ds-dark-theme] {
   /* Component seats. The sidebar column itself is repainted below, from the
      design system's --nav-* slots. */
   --dsw-specific-sidebar-fill: var(--nav-bg);
-  --dsw-specific-sidebar-nav-item-hover: var(--nav-hover);
   --dsw-specific-sidebar-nav-item-active: var(--nav-active-bg);
   --dsw-specific-sidebar-nav-item-active-accent: var(--nav-active-bg);
   --dsw-specific-bubble: color-mix(in srgb, var(--primary) 8%, var(--card));
@@ -122,6 +124,73 @@ html body[data-ds-dark-theme] {
   --dsw-specific-menu: var(--card);
   --dsw-specific-selector: var(--muted);
   --dsw-specific-tip: var(--muted);
+
+  /* Menus. MenuSurface reads its own fill now, no longer --dsw-specific-menu,
+     so it is pointed at --card too; a stuck group header is that fill. */
+  --dsw-menu-surface-fill: var(--card);
+  --dsw-alias-menu-group-header-fill: color-mix(in srgb, var(--card) 94%, transparent);
+  --dsw-alias-menu-icon: var(--secondary-foreground);
+
+  /* Cards in the conversation (deliverables, plan, schedule): --card, --muted
+     on hover, inset tiles on half --muted like the markdown inset blocks. */
+  --dsw-alias-card-fill: var(--card);
+  --dsw-alias-card-fill-hover: var(--muted);
+  --dsw-alias-card-tile-fill: color-mix(in srgb, var(--muted) 50%, transparent);
+
+  /* Selection and accents follow the primary. */
+  --dsw-alias-border-selected: var(--primary);
+  --dsw-alias-bg-document-selection: color-mix(in srgb, var(--primary) 30%, transparent);
+  --dsw-alias-trajectory-accent: var(--primary);
+
+  /* Context meter: messages in the primary, system neutral, tools amber. */
+  --dsw-alias-chart-messages: var(--primary);
+  --dsw-alias-chart-system: var(--muted-foreground);
+  --dsw-alias-chart-tools: var(--accent);
+
+  /* Diffs: the palette's own green and red, mixed onto --card so file-diff
+     rows stay opaque in every theme. */
+  --dsw-alias-code-diff-added: color-mix(in srgb, var(--success) 10%, transparent);
+  --dsw-alias-code-diff-deleted: color-mix(in srgb, var(--danger) 10%, transparent);
+  --dsw-alias-file-diff-added-bg: color-mix(in srgb, var(--success) 14%, var(--card));
+  --dsw-alias-file-diff-added-gutter: color-mix(in srgb, var(--success) 9%, var(--card));
+  --dsw-alias-file-diff-added-marker: var(--success);
+  --dsw-alias-file-diff-deleted-bg: color-mix(in srgb, var(--danger) 14%, var(--card));
+  --dsw-alias-file-diff-deleted-gutter: color-mix(in srgb, var(--danger) 9%, var(--card));
+  --dsw-alias-file-diff-deleted-marker: var(--danger);
+
+  /* JSON viewer chrome. The syntax hues stay upstream's, like code blocks. */
+  --dsw-alias-json-tree-hover: color-mix(in srgb, var(--primary) 7%, transparent);
+  --dsw-alias-json-tree-icon: var(--muted-foreground);
+  --dsw-alias-json-tree-punctuation: var(--foreground);
+
+  /* The hover card is a dark bubble in every theme, like the tooltip: the
+     brand's darkest navy, with the nav rail's ink ramp on it. */
+  --dsw-alias-hovercard-bg: var(--brand-900);
+  --dsw-alias-hovercard-label-primary: var(--white);
+  --dsw-alias-hovercard-label-secondary: var(--brand-300);
+  --dsw-alias-hovercard-label-tertiary: var(--brand-400);
+  --dsw-alias-hovercard-state-done: var(--presence-remote);
+  --dsw-alias-hovercard-state-error: var(--danger);
+
+  /* Empty-state illustration: --muted ground, --border shapes. */
+  --dsw-alias-illustration-background: var(--muted);
+  --dsw-alias-illustration-surface: var(--border);
+  --dsw-alias-illustration-backing: color-mix(in srgb, var(--muted-foreground) 40%, var(--card));
+  --dsw-alias-illustration-detail: color-mix(in srgb, var(--muted-foreground) 40%, var(--card));
+
+  /* Ink on a primary fill (the send arrow) is the primary's own foreground.
+     "Deep diving" and the text shimmer lean towards --foreground. */
+  --dsw-alias-label-on-color: var(--primary-foreground);
+  --dsw-alias-label-deep-diving: color-mix(in srgb, var(--primary) 70%, var(--foreground));
+  --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--primary) 30%, var(--foreground));
+  --dsw-alias-label-shimmer: color-mix(in srgb, var(--foreground) 30%, transparent);
+
+  --dsw-alias-state-done-primary: var(--status-purple-fg);
+  --dsw-alias-state-idle-primary: color-mix(in srgb, var(--muted-foreground) 50%, var(--card));
+  --dsw-alias-switch-thumb: var(--card);
+  /* The toast is the primary fill; its action reads in the primary's muted
+     ink, the DS's secondary text on a primary surface. */
+  --dsw-alias-toast-action: var(--primary-muted-foreground);
 
   /* The upstream accent ramp, read directly by a handful of module sheets,
      follows the theme's primary too. */
@@ -146,9 +215,18 @@ html body[data-ds-dark-theme] {
 }
 
 /* In the dark themes the primary is a light tint, so white toast text needs a
-   darker fill. */
+   darker fill. On that fill the dark --primary-muted-foreground would vanish,
+   so the action takes the amber accent instead. */
 html body[data-ds-dark-theme] {
   --dsw-alias-toast-bg: color-mix(in srgb, var(--primary) 35%, var(--card));
+  --dsw-alias-toast-action: var(--accent);
+  /* Off-state switch thumb: a mid tone, not the dark --card, on the track. */
+  --dsw-alias-switch-thumb: var(--muted-foreground);
+  --dsw-alias-label-shimmer: color-mix(in srgb, var(--foreground) 45%, transparent);
+  /* Illustration shapes lift off the ground in the dark, as upstream's do. */
+  --dsw-alias-illustration-surface: color-mix(in srgb, var(--muted-foreground) 40%, var(--card));
+  --dsw-alias-illustration-backing: color-mix(in srgb, var(--muted-foreground) 25%, var(--card));
+  --dsw-alias-illustration-detail: color-mix(in srgb, var(--muted-foreground) 55%, var(--card));
 }
 
 /* NetSuite Redwood: the decorative stripe Redwood puts at the very top of every
@@ -175,7 +253,9 @@ html[data-compliance-theme="netsuite-redwood"] body::before {
    The column has no stable attribute of its own. CSS-module classes ship as
    `<hash>_<localName>`, so these rules match the local name (`_sidebarCol`,
    `_panelRow`, …): the hash changes with every build, the local name only when
-   upstream renames the class. The tokens are re-declared on the column, so
+   upstream renames the class. Where upstream exposes state through ARIA (the
+   current panel, the selected session) the rules read that instead of a state
+   class, as upstream's upgrade guide asks. The tokens are re-declared on the column, so
    everything inside it — including other plugins' footer actions — inherits
    the navigation ink without a selector per component. Menus opened from the
    sidebar are portalled out of it; the reset at the end covers any that are
@@ -216,13 +296,22 @@ html body [class*="_sidebarCol"] [class*="_sessionRow"] {
   font-weight: var(--weight-medium);
 }
 
-/* The current item: the active pill, strong ink, 600 weight. */
-html body [class*="_sidebarCol"] [class*="_panelRow"][class*="_panelActive"],
-html body [class*="_sidebarCol"] [class*="_sessionRow"][class*="_selected"] {
+/* The current item: the active pill, strong ink, 600 weight. The state rides
+   the rows' ARIA, not a state class: `aria-current="page"` on the panel row,
+   `aria-selected="true"` on the session row. Upstream paints the active panel
+   on the row's wrapper (the entry that also holds the unpin button) and keeps
+   the row itself transparent, so the pill goes on that wrapper: painting the
+   row as well would stack the translucent --nav-active-bg twice. */
+html body [class*="_sidebarCol"] :has(> [class*="_panelRow"][aria-current="page"]),
+html body [class*="_sidebarCol"] [class*="_sessionRow"][aria-selected="true"] {
   --dsw-alias-label-primary: var(--nav-active-fg);
   --dsw-alias-label-secondary: var(--nav-active-fg);
   background: var(--nav-active-bg);
+  border-radius: var(--radius-lg);
   color: var(--nav-active-fg);
+}
+html body [class*="_sidebarCol"] [class*="_panelRow"][aria-current="page"],
+html body [class*="_sidebarCol"] [class*="_sessionRow"][aria-selected="true"] {
   font-weight: var(--weight-semibold);
 }
 
@@ -268,29 +357,10 @@ html body [class*="_sidebarCol"] :is([role="menu"], [role="listbox"], [role="dia
 }
 
 /* ---- Buttons ------------------------------------------------------------
-   The shared Button primitive (ui-primitives) is a capsule: 18px radius,
-   400 weight. The design system's buttons are 8px, 600 on a solid fill and 500
-   at the small size, with secondary as a bordered --card (Button.jsx). The
-   primitive renders `<hash>_button <hash>_<variant> <hash>_<size>`; both
-   classes are required here, and no other module pairs a `button` class with
-   those variant names. Colours already follow the token bridge above
-   (--primary / --primary-hover / --primary-foreground). */
-html body button[class*="_button "] {
-  border-radius: var(--radius-lg);
-  font-weight: var(--weight-medium);
-}
-html body button[class*="_button "][class*="_primary"] {
-  font-weight: var(--weight-semibold);
-}
-html body button[class*="_button "][class*="_sm"] {
-  border-radius: var(--radius-lg);
-  font-size: var(--text-13);
-}
-html body button[class*="_button "][class*="_outline"] {
-  background: var(--card);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-}
-html body button[class*="_button "][class*="_outline"]:hover:not(:disabled) {
-  background: var(--muted);
-}
+   Deliberately unstyled here. The shared Button primitive (ui-primitives) has
+   no stable variant hook (no data-* or ARIA, only `<hash>_button
+   <hash>_<variant>` classes), and a rule keyed on those classes never matched
+   before dsh 0.2: static-linked libraries then shipped `_<local>_<hash>`
+   names. Upstream's own buttons now sit on the --dsw-radius-* scale, and their
+   colours already follow the token bridge above (--primary / --primary-hover /
+   --primary-foreground). */
