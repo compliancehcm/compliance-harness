@@ -112,13 +112,18 @@ alma_overlay=$BACKEND_RENDER_DIR/compliance-alma-mcp.overlay.yml
   config:
     host: 127.0.0.1
     port: 0
+    # A patch replaces the row's whole config, so upstream's compression
+    # settings are restated (packages/bundle/web-app/cordis.patch.yml).
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
 
 - id: web-runtime
   config:
     openBrowser: false
     printUrl: false
     surfaceContext: true
-    trustedHosts: !!js ctx.webStartup.trustedHosts
+    publicUrl: ${SSO_PUBLIC_URL}
 
 - insert:
     - id: sso-auth
@@ -145,7 +150,9 @@ YAML
 YAML
 } > "$sso_overlay"
 
-patches=("$sso_overlay")
+# Upstream Web features switched off in every process: see the file's comments.
+hardening_overlay=$HARNESS_ROOT/plugins/compliance-hardening.overlay.yml
+patches=("$sso_overlay" "$hardening_overlay")
 
 # ── the ALMA MCP connection ───────────────────────────────────────────────────
 #
@@ -199,6 +206,7 @@ if [[ $TENANCY == on ]]; then
     "$HARNESS_ROOT/plugins/compliance-artifacts"
   )
   backend_patches=(
+    "$hardening_overlay"
     "$HARNESS_ROOT/plugins/compliance-brand.overlay.yml"
     "$HARNESS_ROOT/plugins/compliance-user-menu.overlay.yml"
     # The LLM default. Committed rather than rendered: unlike the SSO and ALMA
@@ -238,6 +246,7 @@ if [[ $TENANCY == on ]]; then
         portRange: [${COMPLIANCE_PORT_RANGE_START:-31000}, ${COMPLIANCE_PORT_RANGE_END:-31200}]
         maxBackends: ${COMPLIANCE_MAX_BACKENDS:-12}
         idleReapMinutes: ${COMPLIANCE_IDLE_REAP_MINUTES:-15}
+        publicUrl: ${SSO_PUBLIC_URL}
         forwardCredentials: $(yaml_list "${COMPLIANCE_FORWARD_CREDENTIALS:-DEEPSEEK_API_KEY}")
         pluginPackages:
 YAML

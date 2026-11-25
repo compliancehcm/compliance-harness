@@ -1,0 +1,43 @@
+# Loader overlay: upstream Web features this deployment switches off, for every
+# process — the gateway's own harness, every user's and administrator's backend,
+# and the single-harness mode alike. deploy/docker/entrypoint.sh applies it to
+# all of them.
+#
+# Each row names an id from packages/bundle/web-app/cordis.patch.yml. A patch
+# targeting an id no row carries is silently ignored, so verify ids there when
+# editing this file (the compliance-plugins lane boots the composition, but a
+# row that disables nothing still boots).
+
+# Remote sign-in (dsh 0.2.3): sign-in links, QR codes and device pairing, with
+# anonymous `/pairing/*` routes and a 30-day cookie that does not depend on the
+# SSO session. Here the SSO gate is the only way in. Backends do not unshare the
+# network, so an agent in one user's jail could otherwise reach another user's
+# backend on loopback and file pairing requests that a single approval would
+# turn into owner access.
+- id: remote-connection
+  disabled: true
+
+# Prompt sections for an agent that inspects or extends the harness serving the
+# GUI, plus the checkout path and GUI URL as runtime context. Users here are not
+# developing the harness; the checkout path is the read-only image tree and the
+# URL is the backend's loopback port, which no browser can open.
+- id: harness-dev-context
+  disabled: true
+
+# The packaged Office skill drives python-docx, python-pptx and openpyxl in the
+# user's Python. The image ships only pandas, openpyxl and pyarrow, and new
+# workbooks belong to `write_xlsx` (plugins/compliance-xlsx), which applies the
+# company theme. The `office_*` render/convert tools stay: they are declared
+# inside the agent presets, and they do not compete with write_xlsx.
+- id: skill-office
+  disabled: true
+
+# Scheduled tasks and reminders. A backend is stopped after
+# COMPLIANCE_IDLE_REAP_MINUTES without traffic and the Schedule service needs
+# its Host running, so a task a user schedules would silently never fire. The
+# reminder tools register only while this service exists, so disabling it
+# removes them from the model too.
+- id: schedule
+  disabled: true
+- id: ui-schedule
+  disabled: true

@@ -169,6 +169,8 @@ export function launchSpec(
     readonly confinement: Confinement
     readonly env: Readonly<Record<string, string>>
     readonly patches: readonly string[]
+    /** Advertised root, passed as `--public-url`; undefined keeps the loopback URL. */
+    readonly publicUrl: string | undefined
   },
 ): LaunchSpec {
   const env = backendEnv(paths, harness, options.env)
@@ -178,6 +180,7 @@ export function launchSpec(
     ...options.patches.flatMap(patch => ['--patch', patch]),
     '--port', String(options.port),
     '--no-open',
+    ...options.publicUrl === undefined ? [] : ['--public-url', options.publicUrl],
   ]
 
   if (options.confinement === 'none') {

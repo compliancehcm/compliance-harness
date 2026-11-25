@@ -35,6 +35,14 @@ export interface TenancyConfig {
    * every user's profile so the overlays above can name them.
    */
   readonly pluginPackages: readonly string[]
+  /**
+   * The root browsers reach the platform through (the SSO gate's public URL),
+   * passed to every backend as `--public-url` so the URL it advertises — the
+   * `DSH_WEB_URL` shell variable and any link the agent hands out — is one a
+   * user can open instead of the backend's loopback port. Undefined advertises
+   * the loopback URL.
+   */
+  readonly publicUrl: string | undefined
 }
 
 /** Defaults for every omitted field. */
@@ -83,7 +91,7 @@ function readStrings(raw: Record<string, unknown>, key: string, problems: string
 const KNOWN_FIELDS: ReadonlySet<string> = new Set([
   'usersRoot', 'harnessRoot', 'confinement', 'portRange', 'maxBackends',
   'idleReapMinutes', 'forwardCredentials', 'userPatches', 'adminPatches',
-  'pluginPackages',
+  'pluginPackages', 'publicUrl',
 ])
 
 /**
@@ -154,6 +162,22 @@ export function resolveConfig(input: unknown): TenancyConfig {
   const adminPatches = readStrings(raw, 'adminPatches', problems)
   const pluginPackages = readStrings(raw, 'pluginPackages', problems)
 
+  const publicUrlRaw = raw['publicUrl']
+  let publicUrl: string | undefined
+  if (publicUrlRaw !== undefined && publicUrlRaw !== null) {
+    let parsed: URL | undefined
+    try {
+      parsed = typeof publicUrlRaw === 'string' ? new URL(publicUrlRaw) : undefined
+    } catch {
+      parsed = undefined
+    }
+    if (parsed === undefined || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')) {
+      problems.push(`publicUrl must be an absolute http(s) URL, got ${JSON.stringify(publicUrlRaw)}`)
+    } else {
+      publicUrl = parsed.href
+    }
+  }
+
   if (portRange[1] - portRange[0] + 1 < maxBackends) {
     // Caught here rather than as a per-user "no free port" failure much later,
     // which would look like a bug instead of a configuration mistake.
@@ -179,5 +203,6 @@ export function resolveConfig(input: unknown): TenancyConfig {
     userPatches,
     adminPatches,
     pluginPackages,
+    publicUrl,
   }
 }
