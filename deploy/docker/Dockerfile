@@ -19,7 +19,12 @@
 #   docker build -f deploy/docker/Dockerfile \
 #     --build-arg DSH_CLIENT_COMMIT_HASH="$(git rev-parse HEAD)" -t compliance-ai .
 
-ARG NODE_IMAGE=node:24-bookworm-slim
+# Pinned to a patch release rather than the floating `node:24`: the repository's
+# `engines` requires ^24.22.3 (undici security fixes, dsh 0.2.3), and a build
+# cache can keep serving an older `node:24` layer long after the tag moved.
+# Raise it together with `engines` in package.json; deploy/docker/smoke.sh
+# refuses an image whose node does not satisfy `engines`.
+ARG NODE_IMAGE=node:24.22.3-bookworm-slim
 
 # ── build ─────────────────────────────────────────────────────────────────────
 FROM ${NODE_IMAGE} AS builder

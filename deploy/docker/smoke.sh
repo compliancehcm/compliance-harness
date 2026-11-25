@@ -114,6 +114,29 @@ check_healthcheck() {
   printf 'smoke: %s: healthcheck command ok\n' "$name"
 }
 
+# The image's node must satisfy the repository's `engines` (dsh 0.2.3 requires
+# ^24.22.3 for undici security fixes). A floating base tag, or a build cache
+# holding an old layer, would otherwise ship an older node without a trace.
+check_node_engine() {
+  local verdict
+  verdict=$(docker run --rm --entrypoint node "$image" -e '
+    const wanted = require("/app/package.json").engines.node
+    const have = process.versions.node.split(".").map(Number)
+    const cmp = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0 }
+    const ok = wanted.split("||").some(range => {
+      const m = /^\s*(\^|>=)(\d+)\.(\d+)\.(\d+)\s*$/.exec(range)
+      if (m === null) throw new Error(`unsupported engines range ${JSON.stringify(range)}`)
+      const floor = [Number(m[2]), Number(m[3]), Number(m[4])]
+      return cmp(have, floor) >= 0 && (m[1] === ">=" || have[0] === floor[0])
+    })
+    console.log(`${ok ? "ok" : "too old"} node ${process.versions.node} for engines ${wanted}`)
+  ') || die "could not read the image node version"
+  [[ $verdict == ok* ]] || die "$verdict"
+  printf 'smoke: %s\n' "$verdict"
+}
+
+check_node_engine
+
 addr=$(boot "compliance-smoke-tenancy-$run")
 check_gate "compliance-smoke-tenancy-$run" "$addr"
 check_healthcheck "compliance-smoke-tenancy-$run"
