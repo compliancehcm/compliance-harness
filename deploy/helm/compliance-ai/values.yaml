@@ -158,8 +158,8 @@ networkPolicy:
 
 # ── confinement ───────────────────────────────────────────────────────────────
 # Tenancy wraps every backend in bubblewrap and probes it at boot: without these
-# the pod exits with "unprivileged user namespaces are probably unavailable on
-# this host" rather than serving users unconfined. They also require the
+# the gate logs "confinement 'bwrap' is unusable" and never becomes ready,
+# rather than serving users unconfined. They also require the
 # namespace's Pod Security level to be `privileged` (see NOTES / README).
 confinement:
   capabilities:
@@ -169,9 +169,12 @@ confinement:
   # (Kubernetes 1.30+); `annotation` uses the older beta annotation; `auto`
   # picks by the cluster version.
   appArmor: auto
-  # Left to the node default when empty. RuntimeDefault permits the namespace
-  # calls bubblewrap makes once SYS_ADMIN is granted.
-  seccompProfile: {}
+  # Explicit rather than the node default: RuntimeDefault, like Docker's
+  # default profile, refuses bwrap's pivot_root even with SYS_ADMIN, and a
+  # kubelet running --seccomp-default applies it to every pod that names none.
+  # `{}` leaves it to the node; a Localhost profile must allow pivot_root.
+  seccompProfile:
+    type: Unconfined
 
 resources:
   requests:

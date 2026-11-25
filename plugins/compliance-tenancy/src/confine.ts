@@ -240,7 +240,7 @@ export function confinementProblem(confinement: Confinement): string | undefined
     ...binds,
     '--proc', '/proc', '--dev', '/dev', '--unshare-pid',
     '--', '/usr/bin/env', 'true',
-  ], { timeout: 10_000, stdio: 'ignore' })
+  ], { timeout: 10_000, stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' })
   if (probe.error !== undefined) {
     const code = (probe.error as NodeJS.ErrnoException).code
     return code === 'ENOENT'
@@ -248,8 +248,15 @@ export function confinementProblem(confinement: Confinement): string | undefined
       : `bwrap could not be run: ${probe.error.message}`
   }
   if (probe.status !== 0) {
-    return `bwrap exited ${String(probe.status)} on a trivial sandbox; `
-      + 'unprivileged user namespaces are probably unavailable on this host'
+    // bwrap names the call it was refused ("pivot_root: Operation not
+    // permitted", "No permissions to create new namespace"), and those two
+    // have different fixes: the first is a seccomp profile, the second a
+    // missing capability or a kernel that refuses user namespaces.
+    const said = probe.stderr.trim().split('\n').at(-1)?.slice(0, 200)
+    return `bwrap exited ${String(probe.status)} on a trivial sandbox`
+      + (said ? ` (${said})` : '')
+      + '; the container needs SYS_ADMIN, unconfined AppArmor and a seccomp '
+      + 'profile that allows pivot_root, or the host refuses namespaces'
   }
   return undefined
 }

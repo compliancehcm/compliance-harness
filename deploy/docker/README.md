@@ -161,6 +161,7 @@ Without compose, the same thing by hand:
 docker run -d --name compliance-ai \
   -p 3080:3080 \
   --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+  --security-opt seccomp=unconfined \
   -v compliance-ai-users:/var/lib/compliance-ai/users \
   -e SSO_ISSUER=https://sso.compliancehcm.com.br/realms/ComplianceHCM \
   -e SSO_CLIENT_ID=compliance-ai-harness \
@@ -176,15 +177,18 @@ provider's client, exactly.
 ### The confinement privilege is not optional
 
 Tenancy wraps every backend in bubblewrap, and it **probes that wrapper at boot**
-rather than per login: on a host where an unprivileged user namespace cannot be
-created, the container exits with `unprivileged user namespaces are probably
-unavailable on this host` instead of serving users unconfined.
+rather than per login: where bubblewrap cannot build a sandbox, the gate logs
+`confinement 'bwrap' is unusable` (with bwrap's own complaint) and never starts
+listening, instead of serving every user from one unconfined harness.
 
-Docker's default profile withholds exactly that. `--cap-add SYS_ADMIN
---security-opt apparmor=unconfined` is the narrow form; `--privileged` also
-works. Under Kubernetes the equivalent is a `securityContext` with
-`capabilities.add: [SYS_ADMIN]` and the container's AppArmor profile set to
-`unconfined`.
+Docker's defaults withhold three things bubblewrap needs: the `SYS_ADMIN`
+capability, an AppArmor profile that allows its mounts, and a seccomp profile
+that allows `pivot_root` — Docker's default seccomp profile does not, even with
+`SYS_ADMIN`. `--cap-add SYS_ADMIN --security-opt apparmor=unconfined
+--security-opt seccomp=unconfined` grants them; `--privileged` also works.
+Under Kubernetes the equivalent is a `securityContext` with
+`capabilities.add: [SYS_ADMIN]`, the AppArmor profile `unconfined`, and a
+seccomp profile of `Unconfined` — see the chart's `confinement` values.
 
 Setting `COMPLIANCE_CONFINEMENT=none` starts anyway and prints a warning — every
 user's agent can then read every other user's files, so it is for a single-user

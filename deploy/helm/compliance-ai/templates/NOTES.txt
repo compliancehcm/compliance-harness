@@ -15,7 +15,7 @@ No ingress. To reach it from here:
 {{- end }}
 {{- if and .Values.tenancy.enabled (eq .Values.tenancy.confinement "bwrap") }}
 
-The pod needs SYS_ADMIN and unconfined AppArmor for bubblewrap. If it stays
+The pod needs SYS_ADMIN and unconfined AppArmor and seccomp for bubblewrap. If it stays
 Pending with a Pod Security error, label the namespace:
   kubectl label namespace {{ .Release.Namespace }} pod-security.kubernetes.io/enforce=privileged --overwrite
 {{- end }}

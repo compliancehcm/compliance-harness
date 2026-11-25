@@ -70,8 +70,9 @@ and either an ingress host or `sso.publicUrl`.
 - **One replica, `Recreate`.** The backend pool is process-local and the users
   volume is `ReadWriteOnce`; there is no `replicaCount`. Scale the node, not
   the Deployment.
-- **Root with `SYS_ADMIN`, AppArmor unconfined.** Tenancy probes bubblewrap at
-  boot and exits rather than serve users unconfined. Clusters that forbid the
+- **Root with `SYS_ADMIN`, AppArmor and seccomp unconfined.** Tenancy probes
+  bubblewrap at boot and never becomes ready rather than serve users unconfined;
+  the runtime's default seccomp profile refuses bwrap's `pivot_root`. Clusters that forbid the
   capability outright (GKE Autopilot, some managed policies) cannot run
   tenancy; `tenancy.enabled: false` runs one shared harness instead, without
   per-user isolation.

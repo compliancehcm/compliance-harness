@@ -24,10 +24,11 @@
 #
 # Usage: deploy/docker/smoke.sh <image>
 #
-# SMOKE_DOCKER_ARGS adds `docker run` flags to both boots. Docker Desktop's
-# default seccomp profile refuses bwrap's pivot_root even with SYS_ADMIN, which
-# fails the tenancy boot as it should; to smoke an image there anyway:
-#   SMOKE_DOCKER_ARGS='--security-opt seccomp=unconfined' deploy/docker/smoke.sh <image>
+# Both boots get the grant the README documents for `docker run`: SYS_ADMIN,
+# unconfined AppArmor and unconfined seccomp. Docker's default seccomp profile
+# refuses bwrap's pivot_root even with SYS_ADMIN, so without the last one the
+# tenancy boot fails on every Docker Engine, GitHub's runners included.
+# SMOKE_DOCKER_ARGS adds further `docker run` flags to both boots.
 set -euo pipefail
 
 image=${1:?usage: smoke.sh <image>}
@@ -61,6 +62,7 @@ boot() {
   local name=$1; shift
   docker run -d --name "$name" --label "compliance-smoke=$run" \
     --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+    --security-opt seccomp=unconfined \
     -p 127.0.0.1::3080 \
     -e SSO_ISSUER=https://sso.invalid/realms/smoke \
     -e SSO_CLIENT_ID=compliance-ai-smoke \
