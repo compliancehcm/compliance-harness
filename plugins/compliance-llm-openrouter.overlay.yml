@@ -14,22 +14,24 @@
 # resolves to nothing inside the jail.
 #
 # `openrouter` is a route pi-ai ships, so the endpoint and the wire protocol come
-# from its installed catalog. The two models below are newer than that catalog,
-# which is what a `models` list is for — it REPLACES the route's catalog, so
-# every model this deployment should serve appears here. Unsized models take the
-# route's own fallbacks (262,144 context, 32,768 output), which would under-size
-# these fourfold, so the capacities OpenRouter publishes are stated below.
+# from its installed catalog. Since pi-ai 1.3 (dsh 0.2.2) that catalog also
+# describes both models below — capacities, cost, and reasoning with the levels
+# off / high / xhigh sent in OpenRouter's own format. A `models` list REPLACES the
+# route's catalog, which is why it is here: it narrows the picker to these two
+# out of the route's hundreds. Every field an entry leaves unset is taken from
+# the catalog entry with the same id (packages/llm/llm-pi-ai/README.md), so the
+# context windows and the reasoning levels are the catalog's, not restated.
 #
-# `maxTokens` is deliberately NOT the published 384,000: a CONFIGURED value
-# becomes the default output cap of every request that names none, and asking for
-# 384k of output on each turn is a deployment choice nobody made. It is stated as
-# a sane per-request default instead; a caller needing more asks for more.
+# `maxTokens` is deliberately set, and NOT to the catalog's 943,717 / 384,000: a
+# CONFIGURED value becomes the default output cap of every request that names
+# none, and asking for that much output on each turn is a deployment choice
+# nobody made. It is a sane per-request default; a caller needing more asks.
 #
-# No `reasoningEfforts` is declared: a hand-declared model has no thinking levels
-# unless one is spelled out, so requests go out with no reasoning parameter and
-# OpenRouter applies the model's own default. Declaring levels here would put a
-# wire spelling on every request, which is worth doing only once someone has
-# checked which spellings this route accepts.
+# `name` is set only for the picker label; the catalog's reads
+# "DeepSeek: DeepSeek V4 Flash 0423".
+#
+# The catalog also carries `deepseek/deepseek-v4.1-flash`, which accepts images
+# where these two are text-only. Adding it is a product decision, not a default.
 - id: llm-pi-ai
   config:
     providers:
@@ -38,11 +40,9 @@
         models:
           - id: deepseek/deepseek-v4-flash
             name: DeepSeek V4 Flash
-            contextWindow: 1048576
             maxTokens: 32768
           - id: deepseek/deepseek-v4-pro
             name: DeepSeek V4 Pro
-            contextWindow: 1048576
             maxTokens: 32768
 
 # The default for every Agent created without an explicit selection. Flash is the

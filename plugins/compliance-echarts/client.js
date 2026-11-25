@@ -31,10 +31,10 @@ window.__ModuleLoader__.load({
 		const react = require("react");
 		const {
 			Button,
-			IconCloseOutline16,
-			IconDownloadOutline16,
-			IconFullscreenOutline16,
-			IconWarningOutline16,
+			IconCloseOutlineRegular,
+			IconDownloadOutlineRegular,
+			IconFullscreenOutlineRegular,
+			IconWarningOutlineRegular,
 		} = require("@deepseek-ai/dsh-client-ui-primitives");
 
 		/** Fallbacks, used only if the host half's boot global is absent. */
@@ -188,7 +188,7 @@ window.__ModuleLoader__.load({
 				.map(entry => entry.text)
 				.join("\n")
 				.trim();
-			return text === "" ? "The chart was rejected." : text;
+			return text === "" ? "O gráfico foi recusado." : text;
 		}
 
 		/**
@@ -205,7 +205,7 @@ window.__ModuleLoader__.load({
 		/** The card title; never empty, never trusted to be a string. */
 		function titleOf(args) {
 			const title = args?.title;
-			return typeof title === "string" && title.trim() !== "" ? title.trim() : "Chart";
+			return typeof title === "string" && title.trim() !== "" ? title.trim() : "Gráfico";
 		}
 
 		// ── styles ────────────────────────────────────────────────────────────
@@ -339,8 +339,8 @@ window.__ModuleLoader__.load({
 				return jsxs("div", {
 					style: NOTICE_STYLE,
 					children: [
-						jsx(IconWarningOutline16, {}),
-						jsx("span", { children: `The charting library could not be loaded: ${failure}` }),
+						jsx(IconWarningOutlineRegular, {}),
+						jsx("span", { children: `Não foi possível carregar a biblioteca de gráficos: ${failure}` }),
 					],
 				});
 			}
@@ -399,7 +399,7 @@ window.__ModuleLoader__.load({
 					children: jsxs("div", {
 						style: NOTICE_STYLE,
 						children: [
-							jsx(IconWarningOutline16, {}),
+							jsx(IconWarningOutlineRegular, {}),
 							jsxs("span", {
 								children: [
 									jsx("strong", { children: `${title}: ` }),
@@ -416,7 +416,7 @@ window.__ModuleLoader__.load({
 				// loaded window. Say so instead of showing an empty frame.
 				return jsx("div", {
 					style: CARD_STYLE,
-					children: jsx("div", { style: NOTICE_STYLE, children: "Building chart…" }),
+					children: jsx("div", { style: NOTICE_STYLE, children: "Montando o gráfico…" }),
 				});
 			}
 
@@ -443,11 +443,11 @@ window.__ModuleLoader__.load({
 								style: HEADER_STYLE,
 								children: [
 									jsx("span", { style: TITLE_STYLE, title, children: title }),
-									action(jsx(IconDownloadOutline16, {}), "Save as PNG", () => {
+									action(jsx(IconDownloadOutlineRegular, {}), "Salvar como PNG", () => {
 										const chart = chartRef.current;
 										if (chart !== null) downloadPng(chart, title);
 									}),
-									action(jsx(IconFullscreenOutline16, {}), "Expand", () => { setExpanded(true); }),
+									action(jsx(IconFullscreenOutlineRegular, {}), "Expandir", () => { setExpanded(true); }),
 								],
 							}),
 							jsx(Chart, {
@@ -474,11 +474,11 @@ window.__ModuleLoader__.load({
 									style: { display: "flex", alignItems: "center", gap: "8px" },
 									children: [
 										jsx("span", { style: { ...TITLE_STYLE, fontSize: "15px" }, children: title }),
-										action(jsx(IconDownloadOutline16, {}), "Save as PNG", () => {
+										action(jsx(IconDownloadOutlineRegular, {}), "Salvar como PNG", () => {
 											const chart = overlayChartRef.current;
 											if (chart !== null) downloadPng(chart, title);
 										}),
-										action(jsx(IconCloseOutline16, {}), "Close", () => { setExpanded(false); }),
+										action(jsx(IconCloseOutlineRegular, {}), "Fechar", () => { setExpanded(false); }),
 									],
 								}),
 								jsx("div", {

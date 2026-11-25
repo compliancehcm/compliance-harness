@@ -20,6 +20,7 @@ import { apply, inject, name } from '../index.js'
 import { resolveConfig, EchartsConfigError } from '../src/config.js'
 import { chartTool } from '../src/tool.js'
 import { chartSkill } from '../src/skill.js'
+import { strictClientModule } from '../../test-support/client-exports.mjs'
 
 const results = []
 /**
@@ -234,7 +235,7 @@ await check('the client half registers the chart view under the tool name', () =
   const stubs = {
     'react/jsx-runtime': { jsx: () => null, jsxs: () => null },
     react: { useState: () => [null, () => {}], useEffect: () => {}, useRef: () => ({}), useMemo: () => null, Fragment: 'fragment' },
-    '@deepseek-ai/dsh-client-ui-primitives': new Proxy({}, { get: () => () => null }),
+    '@deepseek-ai/dsh-client-ui-primitives': strictClientModule('@deepseek-ai/dsh-client-ui-primitives'),
   }
   const half = sandbox.handoff.factory((specifier) => {
     const stub = stubs[specifier]

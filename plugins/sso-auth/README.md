@@ -130,37 +130,42 @@ opaque `invalid_client`.
 `admin` claim requirement. This is not belt-and-braces — it is the only fence
 there is.
 
-The harness normally keeps `settings.*`, `credentials.*`, `llm.discoverModels`
-and the preset-authoring methods loopback-only through `PRIVILEGED_METHODS`
-(`packages/client/connection/src/index.ts:89-119`), enforced by re-running the
-host trust fence with an empty trusted-host list. **This proxy forwards from
-`127.0.0.1`, so every authenticated user passes that pin unconditionally.**
-Without the policy, admitting a user hands them the whole configuration plane.
+Every unary call is `POST /api/<namespace>/<method>`, and a backend treats
+every caller this proxy forwards as its owner. **Nothing on the harness side
+stops an ordinary user from calling the configuration plane**, so admitting a
+user without this policy hands them all of it.
 
-Refused for a non-admin: `credentials.*`, `llm.providers`,
-`llm.discoverModels`, `settings.openDocument`,
-`agentPreset.{read,copy,openDocument,remove}`,
-`host.{pickDirectory,openPath,listDirectory,createDirectory}`, and the
-`dynamicCordisRunner`, `pluginInventory` and `pluginManager` Remote namespaces.
-The last installs packages and toggles bundles in the backend's profile; its
-sidebar page is removed from the user role, and this refusal is what keeps a
-crafted call from reaching it anyway.
+Refused for a non-admin, by namespace: `credentials`, `dynamicCordisRunner`,
+`pluginInventory`, `pluginManager`, `pluginMarket`, `pluginRegistryProbe`,
+`agentPresets`, `permissionPresets`, `account`, `connectorAccounts`,
+`liveshareShares`, `cuaAccess`, `claudeCodeMods`. By endpoint:
+`llm/discoverModels` (a host-side GET to a caller-chosen URL),
+`llm/listConfigurableProviders`, `settings/openSettingsDocument`,
+`directoryPicker/pick` and `session/openWorkspacePath` (native dialogs and
+openers on the host, outside confinement).
 
-Two cases are decided from the request **body**, not the path:
+Two cases are decided from the request **body** (`payload.args`), not the path:
 
-- `settings.{describe,update,replace,mutate}` cannot be refused wholesale —
-  Appearance, Language and the composer's Enter behaviour persist through the
-  same methods. The namespace is in the body (`payload.ns`), so `ui-theme`,
-  `locale`, `ui-conversation` and `ui-onboarding` are allowed and everything else
-  (`shell`, `agent-loop`, `agent-presets`, `permission`, …) is refused.
-  `settings.describe` carries no namespace and answers for all of them at once,
-  so it is allowed; the host redacts secrets before serializing.
-- `session.create` carries an `agentPreset` field, which is the back door around
-  any gate on `agentPreset.select` — a preset is a different toolset carrying
-  shell-level trust. A non-admin naming one is refused.
+- `settings/{update,replace,mutate}` cannot be refused wholesale — Appearance
+  (including the font), Language and the composer persist through them. The
+  namespace is the `ns` argument, so `ui-theme`, `locale` and `ui-conversation`
+  are allowed and everything else (`shell`, `agent-loop`, `mcp-client`,
+  `llm-pi-ai`, …) is refused. `settings/describe` takes no namespace and is
+  allowed; the host redacts secrets before serializing.
+- `session/create` carries `request.agentPreset`, the back door around
+  `agentPresets` — a preset is a different toolset carrying shell-level trust. A
+  non-admin naming one is refused.
 
-Bodies are buffered only for those two methods (capped at 256 KB, larger is
-refused rather than judged blind); everything else keeps streaming.
+Bodies are buffered only for those calls (capped at 256 KB, larger is refused
+rather than judged blind); everything else keeps streaming. Streams travel over
+the `/api/remote.mux` WebSocket, which is not inspected: every stream method the
+harness ships is a read-only `watch`/`follow`.
+
+**Keep the names real.** Until 2026-11 this policy matched the retired flat
+`credentials.set` form and refused almost nothing while every test passed.
+`tests/policy.mjs` now checks each namespace and endpoint it names against
+upstream's endpoint table (`packages/experimental/liveshare/src/endpoint-classification.ts`),
+so after an upstream sync a rename fails that test instead of reopening the fence.
 
 Administrative standing is decided **once, at login**, and kept on the session:
 the claims are not retained, and re-reading them per request would mean an

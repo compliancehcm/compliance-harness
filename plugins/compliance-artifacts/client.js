@@ -45,13 +45,13 @@ window.__ModuleLoader__.load({
 		const react = require("react");
 		const {
 			Button,
-			IconArchiveOutline20,
-			IconCloseOutline16,
-			IconFolderOpenOutline16,
-			IconFullscreenOutline16,
-			IconRefreshOutline16,
-			IconSearchOutline16,
-			IconWarningOutline16,
+			IconArchiveOutlineRegular,
+			IconCloseOutlineRegular,
+			IconFolderOpenOutlineRegular,
+			IconFullscreenOutlineRegular,
+			IconRefreshOutlineRegular,
+			IconSearchOutlineRegular,
+			IconWarningOutlineRegular,
 		} = require("@deepseek-ai/dsh-client-ui-primitives");
 
 		/** This plugin's tab-type id, and the key of its panel body. */
@@ -207,7 +207,7 @@ window.__ModuleLoader__.load({
 				return jsxs("div", {
 					style: { ...CARD_STYLE, color: "var(--dsw-alias-state-error-primary)" },
 					children: [
-						jsx(IconWarningOutline16, {}),
+						jsx(IconWarningOutlineRegular, {}),
 						jsx("span", { children: failure }),
 					],
 				});
@@ -258,7 +258,7 @@ window.__ModuleLoader__.load({
 						disabled: openArtifact === null,
 						children: jsxs("span", {
 							style: { display: "inline-flex", alignItems: "center", gap: "6px" },
-							children: [jsx(IconFullscreenOutline16, {}), "Abrir"],
+							children: [jsx(IconFullscreenOutlineRegular, {}), "Abrir"],
 						}),
 					}),
 				],
@@ -683,7 +683,7 @@ window.__ModuleLoader__.load({
 					color: "var(--dsw-alias-label-secondary)",
 					cursor: "pointer",
 				},
-				children: archived ? jsx(IconRefreshOutline16, {}) : jsx(IconArchiveOutline20, { size: 16 }),
+				children: archived ? jsx(IconRefreshOutlineRegular, {}) : jsx(IconArchiveOutlineRegular, { size: 16 }),
 			});
 
 			return jsxs("div", { style: { position: "relative", minWidth: 0 }, children: [openCard, action] });
@@ -876,7 +876,7 @@ window.__ModuleLoader__.load({
 								jsxs("label", {
 									style: { display: "inline-flex", alignItems: "center", gap: "6px" },
 									children: [
-										jsx(IconSearchOutline16, {}),
+										jsx(IconSearchOutlineRegular, {}),
 										jsx("input", {
 											type: "search",
 											value: text,
@@ -907,7 +907,7 @@ window.__ModuleLoader__.load({
 								jsx(Button, {
 									size: "small",
 									onClick: () => { gallery.set(false); },
-									children: jsx(IconCloseOutline16, {}),
+									children: jsx(IconCloseOutlineRegular, {}),
 								}),
 							],
 						}),
@@ -997,7 +997,7 @@ window.__ModuleLoader__.load({
 					overflow: "hidden",
 				},
 				children: [
-					jsx(IconFolderOpenOutline16, { size: wide ? 16 : 18 }),
+					jsx(IconFolderOpenOutlineRegular, { size: wide ? 16 : 18 }),
 					wide
 						? jsx("span", {
 							style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

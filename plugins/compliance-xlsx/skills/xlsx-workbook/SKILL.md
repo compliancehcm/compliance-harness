@@ -13,6 +13,11 @@ owns the look, so do not try to style cells yourself.
 **You never see the result.** There is no loop where you open the file and fix
 it, so the description has to be right when you send it.
 
+**Every new workbook goes through `write_xlsx`**: it applies the company theme
+and the column formats below. Do not build one with openpyxl in a shell or with
+the `office_*` tools — those only render, convert or recalculate a file that
+already exists, such as turning a legacy `.xls` into `.xlsx` before reading it.
+
 ## Rows: inline or from a file
 
 | Situation | Pass |

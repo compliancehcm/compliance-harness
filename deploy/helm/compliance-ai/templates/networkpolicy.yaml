@@ -1,0 +1,68 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+  Egress fence for the agents. Since dsh 0.2.1-rc.2 `web_fetch` reaches loopback,
+  private and cloud-metadata addresses on purpose, and the agents' shells always
+  could; upstream leaves restricting that to the deployment
+  (docs/upgrade-guide/v0.2.1-rc.2/web-fetch-private-destinations). bubblewrap
+  does not unshare the network, so every user's agent shares this pod's egress.
+
+  The public internet stays open (OpenRouter, the identity provider, ALMA, web
+  search and fetch). Private, link-local and carrier-grade ranges are refused, so
+  the agents cannot probe the cluster, the node or the metadata endpoint. A
+  destination that only resolves to a private address — an in-cluster identity
+  provider, say — goes in `networkPolicy.extraEgress`.
+
+  What this cannot do: traffic inside the pod never leaves it, so one user's
+  agent can still reach another user's backend on 127.0.0.1. That path is held
+  by the backends' launch-token cookie, and by remote sign-in being disabled
+  (plugins/compliance-hardening.overlay.yml).
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "compliance-ai.fullname" . }}
+  labels:
+    {{- include "compliance-ai.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "compliance-ai.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # The gate is the only listener; anything that reaches the Service may
+    # connect to it, exactly as without a policy.
+    - ports:
+        - port: http
+          protocol: TCP
+  egress:
+    # Cluster DNS, whose address is itself private.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podLabels | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The public internet, minus every non-public range.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- toYaml .Values.networkPolicy.deniedIPv4 | nindent 14 }}
+        {{- if .Values.networkPolicy.ipv6 }}
+        - ipBlock:
+            cidr: ::/0
+            except:
+              {{- toYaml .Values.networkPolicy.deniedIPv6 | nindent 14 }}
+        {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

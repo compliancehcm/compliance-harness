@@ -8,11 +8,11 @@ environment is a value here; `values.yaml` documents each one.
 ## Get it
 
 CI publishes the chart to GitHub Container Registry as an OCI artifact, pinned
-to the image digest the same run built and booted:
+to an image digest that booted in CI:
 
 | Source | Chart version | Image |
 |---|---|---|
-| tag `v1.2.3` | `1.2.3` | `v1.2.3`, by digest |
+| tag `v1.2.3` | `1.2.3` | `v1.2.3` — the image `master` built for that commit, promoted without a rebuild ([releases](../../docker/README.md#releases-are-promoted-not-rebuilt)), by digest |
 | push to `master` | `<Chart.yaml version>-master.<run>` (prerelease) | `sha-<commit>`, by digest |
 
 ```sh
@@ -70,8 +70,9 @@ and either an ingress host or `sso.publicUrl`.
 - **One replica, `Recreate`.** The backend pool is process-local and the users
   volume is `ReadWriteOnce`; there is no `replicaCount`. Scale the node, not
   the Deployment.
-- **Root with `SYS_ADMIN`, AppArmor unconfined.** Tenancy probes bubblewrap at
-  boot and exits rather than serve users unconfined. Clusters that forbid the
+- **Root with `SYS_ADMIN`, AppArmor and seccomp unconfined.** Tenancy probes
+  bubblewrap at boot and never becomes ready rather than serve users unconfined;
+  the runtime's default seccomp profile refuses bwrap's `pivot_root`. Clusters that forbid the
   capability outright (GKE Autopilot, some managed policies) cannot run
   tenancy; `tenancy.enabled: false` runs one shared harness instead, without
   per-user isolation.
@@ -84,6 +85,14 @@ and either an ingress host or `sso.publicUrl`.
 - **Probes hit `/auth/status`**, which the gate answers without a session and
   only once every plugin has loaded — the image `HEALTHCHECK` check. The startup
   probe allows five minutes for the first boot.
+- **An egress NetworkPolicy is on by default** (`networkPolicy.enabled`). Since
+  dsh 0.2.1 `web_fetch` reaches private and cloud-metadata addresses on purpose,
+  and bubblewrap does not unshare the network, so the policy keeps every user's
+  agent on the public internet: private, link-local and carrier-grade ranges are
+  refused, cluster DNS is allowed. **An identity provider or ALMA reachable only
+  at a private address must be added to `networkPolicy.extraEgress`**, or login
+  and ALMA stop working. Needs a CNI that enforces NetworkPolicy; on one that
+  does not, the object is inert.
 - **Configuration changes restart the pod**: the entrypoint reads the
   environment once, so the ConfigMap's checksum is a pod annotation.
 

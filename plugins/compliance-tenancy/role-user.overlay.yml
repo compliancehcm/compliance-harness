@@ -17,17 +17,27 @@
 - id: ui-settings-models
   disabled: true
 
-# Plugin configuration cards (bash policy, agent-loop limits, web search key).
-- id: ui-settings-plugins
+# Plugin configuration pages (bash policy, agent-loop limits, subagents, web
+# search key). Since dsh 0.2.2 each is its own row registering a page in
+# Settings and on the Plugins page; the gateway refuses the namespaces they
+# write (`shell`, `agent-loop`, …), so the pages go with them.
+- id: ui-settings-shell
+  disabled: true
+- id: ui-settings-agent-loop
+  disabled: true
+- id: ui-settings-subagent
+  disabled: true
+- id: ui-settings-web-search
+  disabled: true
+
+# Settings → General: whether Session logs are uploaded with DeepSeek API
+# requests. A data-governance choice for the deployment, not for each user.
+- id: ui-settings-session-log
   disabled: true
 
 # The sidebar Plugins page, which installs, enables and removes the profile's
 # bundles. The gateway refuses the `pluginManager` namespace behind it.
 - id: ui-plugin-manager
-  disabled: true
-
-# The read-only Loader inventory tab.
-- id: ui-settings-plugin-inventory
   disabled: true
 
 # Agent presets: the section, and the per-session picker chip. A preset carries
@@ -65,3 +75,14 @@
       name: '@deepseek-ai/dsh-host-directory-picker-browse'
     - id: ui-directory-picker-browse
       name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
+
+# Account surfaces whose endpoints the gateway refuses to a non-admin
+# (`account`, `connectorAccounts`): a personal DeepSeek sign-in would change whose
+# billing requests use, and connector OAuth cannot complete behind the gate. The
+# rows go so the UI does not offer them and nothing polls refused endpoints.
+- id: ui-settings-account
+  disabled: true
+- id: ui-account-notifications
+  disabled: true
+- id: ui-connector-account
+  disabled: true

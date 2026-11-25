@@ -140,6 +140,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
         confinement: config.confinement,
         env: { ...await backendCredentials(ctx, config.forwardCredentials), ...brokerEnv(key) },
         patches: admins.has(key) ? config.adminPatches : config.userPatches,
+        publicUrl: config.publicUrl,
       })
       try {
         const backend = await startBackend(spec, port, `${paths.state}/backend.log`)

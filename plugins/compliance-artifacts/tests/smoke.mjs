@@ -29,6 +29,7 @@ import { gunzipSync } from 'node:zlib'
 import { request as httpRequest } from 'node:http'
 import { loadDesignSystem } from '../../compliance-brand/src/design-system.js'
 import { artifactsSkill } from '../src/skill.js'
+import { strictClientModule } from '../../test-support/client-exports.mjs'
 
 const results = []
 /**
@@ -630,7 +631,7 @@ await check('the client half registers under its package name and exports the pl
       if (specifier === 'react/jsx-runtime') return stub
       if (specifier === 'react') return { useCallback: fn => fn, useSyncExternalStore: (_s, get) => get() }
       if (specifier === '@deepseek-ai/dsh-client-ui-primitives') {
-        return { Button: () => null, IconFullscreenOutline16: () => null, IconWarningOutline16: () => null }
+        return strictClientModule('@deepseek-ai/dsh-client-ui-primitives')
       }
       throw new Error(`the shell baseline does not carry ${specifier}`)
     })

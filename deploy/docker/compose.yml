@@ -23,9 +23,10 @@ services:
     image: ${COMPLIANCE_AI_IMAGE:?set COMPLIANCE_AI_IMAGE to the image reference, pinned by digest}
     restart: unless-stopped
     # Tenancy probes bubblewrap at boot and refuses to serve without it; these
-    # two are the narrow grant Docker's default profile withholds.
+    # are the grant Docker's defaults withhold. The default seccomp profile
+    # refuses bwrap's pivot_root even with SYS_ADMIN, hence seccomp=unconfined.
     cap_add: [SYS_ADMIN]
-    security_opt: [apparmor=unconfined]
+    security_opt: [apparmor=unconfined, seccomp=unconfined]
     ports:
       - ${COMPLIANCE_AI_BIND:-127.0.0.1}:3080:3080
     env_file: compliance-ai.env

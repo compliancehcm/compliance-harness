@@ -23,6 +23,12 @@
 # the first login, so a fictitious issuer boots exactly like a real one.
 #
 # Usage: deploy/docker/smoke.sh <image>
+#
+# Both boots get the grant the README documents for `docker run`: SYS_ADMIN,
+# unconfined AppArmor and unconfined seccomp. Docker's default seccomp profile
+# refuses bwrap's pivot_root even with SYS_ADMIN, so without the last one the
+# tenancy boot fails on every Docker Engine, GitHub's runners included.
+# SMOKE_DOCKER_ARGS adds further `docker run` flags to both boots.
 set -euo pipefail
 
 image=${1:?usage: smoke.sh <image>}
@@ -56,11 +62,12 @@ boot() {
   local name=$1; shift
   docker run -d --name "$name" --label "compliance-smoke=$run" \
     --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+    --security-opt seccomp=unconfined \
     -p 127.0.0.1::3080 \
     -e SSO_ISSUER=https://sso.invalid/realms/smoke \
     -e SSO_CLIENT_ID=compliance-ai-smoke \
     -e SSO_PUBLIC_URL=http://127.0.0.1:3080 \
-    "$@" "$image" >/dev/null
+    ${SMOKE_DOCKER_ARGS:-} "$@" "$image" >/dev/null
 
   local addr='' deadline=$((SECONDS + boot_timeout))
   while (( SECONDS < deadline )); do
@@ -68,6 +75,13 @@ boot() {
       || fail_with_logs "$name" "exited before serving (status $(docker inspect -f '{{.State.ExitCode}}' "$name"))"
     [[ -n $addr ]] || addr=$(docker port "$name" 3080/tcp 2>/dev/null | head -n1 || true)
     if [[ -n $addr ]] && curl -fsS -o /dev/null "http://$addr/auth/status" 2>/dev/null; then
+      # Serving is not enough: Cordis reports an entry whose apply threw (or
+      # whose service never came) and keeps the rest of the tree running. That
+      # is how a tenancy that could not start bwrap once left the gate serving
+      # every user from one shared, unconfined harness with this smoke green.
+      local inert
+      inert=$(docker logs "$name" 2>&1 | grep -A20 -E 'did not activate' || true)
+      [[ -z $inert ]] || fail_with_logs "$name" "entries did not activate: $inert"
       printf '%s' "$addr"
       return 0
     fi
@@ -113,6 +127,29 @@ check_healthcheck() {
     || fail_with_logs "$name" 'the image HEALTHCHECK command failed against a serving gateway'
   printf 'smoke: %s: healthcheck command ok\n' "$name"
 }
+
+# The image's node must satisfy the repository's `engines` (dsh 0.2.3 requires
+# ^24.22.3 for undici security fixes). A floating base tag, or a build cache
+# holding an old layer, would otherwise ship an older node without a trace.
+check_node_engine() {
+  local verdict
+  verdict=$(docker run --rm --entrypoint node "$image" -e '
+    const wanted = require("/app/package.json").engines.node
+    const have = process.versions.node.split(".").map(Number)
+    const cmp = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0 }
+    const ok = wanted.split("||").some(range => {
+      const m = /^\s*(\^|>=)(\d+)\.(\d+)\.(\d+)\s*$/.exec(range)
+      if (m === null) throw new Error(`unsupported engines range ${JSON.stringify(range)}`)
+      const floor = [Number(m[2]), Number(m[3]), Number(m[4])]
+      return cmp(have, floor) >= 0 && (m[1] === ">=" || have[0] === floor[0])
+    })
+    console.log(`${ok ? "ok" : "too old"} node ${process.versions.node} for engines ${wanted}`)
+  ') || die "could not read the image node version"
+  [[ $verdict == ok* ]] || die "$verdict"
+  printf 'smoke: %s\n' "$verdict"
+}
+
+check_node_engine
 
 addr=$(boot "compliance-smoke-tenancy-$run")
 check_gate "compliance-smoke-tenancy-$run" "$addr"

@@ -64,8 +64,8 @@ and the client build stamps the commit into its artifacts.
 
 ## Pipeline
 
-`docker-image.yml` runs on every push to `master`, `feat/compliance-**` and
-`v*` tags, and on pull requests touching `deploy/docker/**` or `plugins/**`:
+`docker-image.yml` runs on every push to `master` and `feat/compliance-**`,
+and on pull requests touching `deploy/docker/**` or `plugins/**`:
 
 1. **Build** into the runner's engine as `compliance-ai:smoke`.
 2. **Boot smoke** — `smoke.sh` starts that image twice, against a fictitious
@@ -76,10 +76,11 @@ and the client build stamps the commit into its artifacts.
      gateway itself, because under tenancy they load only in a per-user backend
      that a real login spawns.
 
-   Each boot must answer `/auth/status` anonymously, redirect a navigation to
-   `/auth/login` and refuse an API call with 401. The `HEALTHCHECK` command is
-   run against the first.
-3. **Publish** — the same build, a cache hit, pushed with the branch, tag and
+   Each boot must answer `/auth/status` anonymously, log no entry that "did
+   not activate", redirect a navigation to `/auth/login` and refuse an API call
+   with 401. The `HEALTHCHECK` command is run against the first, and the image's
+   node is checked against `engines`.
+3. **Publish** — the same build, a cache hit, pushed with the branch and
    `sha-<commit>` tags, plus `latest` on `master`. Pull requests stop after the
    smoke.
 
@@ -90,6 +91,35 @@ The job exposes `image` and `digest` as outputs, and the run summary prints
    `deploy/helm/compliance-ai` with that digest written into its values and
    pushes it to `oci://ghcr.io/<owner>/charts/compliance-ai`, the
    organization's shared chart namespace.
+
+### Releases are promoted, not rebuilt
+
+A `vX.Y.Z` tag builds nothing. The `promote` job takes the image `master`
+already built, smoke-tested and published for the tagged commit
+(`sha-<commit>` — the one homologation runs) and adds the `vX.Y.Z` tag to that
+**same manifest**, then the chart job publishes chart `X.Y.Z` over it. What
+production pulls is byte for byte what homologation ran, and a release takes
+seconds instead of a full build.
+
+```sh
+# after the release commit is on master and its Docker image run is green
+gh release create v1.0.0 --target master --generate-notes
+```
+
+(`git tag -a v1.0.0 <commit> && git push origin v1.0.0` does the same without
+a GitHub Release.) The job refuses, rather than falling back to a build, when:
+
+- the tag is not `vMAJOR.MINOR.PATCH` (optionally `-prerelease`): the chart
+  version is the tag without its `v`, and Helm requires SemVer;
+- the tagged commit is not on `master`;
+- `master` published no image for that commit and no build of it is running —
+  for instance a docs-only commit, which `master` does not build. Tag the last
+  commit that was built. A build still running is waited for (up to two hours),
+  so tagging right after a merge works.
+
+The promotion uses `imagetools create --prefer-index=false` (without it a
+single manifest gets wrapped in a new index, i.e. a new digest) and then checks
+that the new tag resolves to the promoted digest.
 
 Run the smoke locally against any build:
 
@@ -131,6 +161,7 @@ Without compose, the same thing by hand:
 docker run -d --name compliance-ai \
   -p 3080:3080 \
   --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+  --security-opt seccomp=unconfined \
   -v compliance-ai-users:/var/lib/compliance-ai/users \
   -e SSO_ISSUER=https://sso.compliancehcm.com.br/realms/ComplianceHCM \
   -e SSO_CLIENT_ID=compliance-ai-harness \
@@ -146,15 +177,18 @@ provider's client, exactly.
 ### The confinement privilege is not optional
 
 Tenancy wraps every backend in bubblewrap, and it **probes that wrapper at boot**
-rather than per login: on a host where an unprivileged user namespace cannot be
-created, the container exits with `unprivileged user namespaces are probably
-unavailable on this host` instead of serving users unconfined.
+rather than per login: where bubblewrap cannot build a sandbox, the gate logs
+`confinement 'bwrap' is unusable` (with bwrap's own complaint) and never starts
+listening, instead of serving every user from one unconfined harness.
 
-Docker's default profile withholds exactly that. `--cap-add SYS_ADMIN
---security-opt apparmor=unconfined` is the narrow form; `--privileged` also
-works. Under Kubernetes the equivalent is a `securityContext` with
-`capabilities.add: [SYS_ADMIN]` and the container's AppArmor profile set to
-`unconfined`.
+Docker's defaults withhold three things bubblewrap needs: the `SYS_ADMIN`
+capability, an AppArmor profile that allows its mounts, and a seccomp profile
+that allows `pivot_root` — Docker's default seccomp profile does not, even with
+`SYS_ADMIN`. `--cap-add SYS_ADMIN --security-opt apparmor=unconfined
+--security-opt seccomp=unconfined` grants them; `--privileged` also works.
+Under Kubernetes the equivalent is a `securityContext` with
+`capabilities.add: [SYS_ADMIN]`, the AppArmor profile `unconfined`, and a
+seccomp profile of `Unconfined` — see the chart's `confinement` values.
 
 Setting `COMPLIANCE_CONFINEMENT=none` starts anyway and prints a warning — every
 user's agent can then read every other user's files, so it is for a single-user

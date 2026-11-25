@@ -74,6 +74,17 @@ await check('the bridge sheet itself carries no raw hex colour', () => {
   assert.doesNotMatch(bridge, /#[0-9a-fA-F]{3,8}\b/)
 })
 
+await check('the bridge sets the default font, reads row state from ARIA, and leaves Button alone', () => {
+  const bridge = readFileSync(new URL('../theme/app.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  // ui-theme composes --dsw-font-family from the user's font list, then this default.
+  assert.match(bridge, /--dsh-font-family-text-default: var\(--font\)/)
+  assert.doesNotMatch(bridge, /--dsw-font-family\s*:/, 'declaring it would override the Settings font picker')
+  assert.ok(bridge.includes('[class*="_panelRow"][aria-current="page"]'), 'current panel')
+  assert.ok(bridge.includes('[class*="_sessionRow"][aria-selected="true"]'), 'selected session')
+  assert.doesNotMatch(bridge, /_panelActive|_selected"/, 'state classes are not a stable hook')
+  assert.doesNotMatch(bridge, /_button[ "]/, 'no rule keyed on the Button primitive class')
+})
+
 await check('the artifact sheet follows the scheme by default and fixes a named theme', () => {
   const auto = designSystem.artifactStylesheet(undefined)
   assert.match(auto, /^@font-face\{font-family:'Inter'/)
