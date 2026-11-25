@@ -23,6 +23,11 @@
 # the first login, so a fictitious issuer boots exactly like a real one.
 #
 # Usage: deploy/docker/smoke.sh <image>
+#
+# SMOKE_DOCKER_ARGS adds `docker run` flags to both boots. Docker Desktop's
+# default seccomp profile refuses bwrap's pivot_root even with SYS_ADMIN, which
+# fails the tenancy boot as it should; to smoke an image there anyway:
+#   SMOKE_DOCKER_ARGS='--security-opt seccomp=unconfined' deploy/docker/smoke.sh <image>
 set -euo pipefail
 
 image=${1:?usage: smoke.sh <image>}
@@ -60,7 +65,7 @@ boot() {
     -e SSO_ISSUER=https://sso.invalid/realms/smoke \
     -e SSO_CLIENT_ID=compliance-ai-smoke \
     -e SSO_PUBLIC_URL=http://127.0.0.1:3080 \
-    "$@" "$image" >/dev/null
+    ${SMOKE_DOCKER_ARGS:-} "$@" "$image" >/dev/null
 
   local addr='' deadline=$((SECONDS + boot_timeout))
   while (( SECONDS < deadline )); do
@@ -68,6 +73,13 @@ boot() {
       || fail_with_logs "$name" "exited before serving (status $(docker inspect -f '{{.State.ExitCode}}' "$name"))"
     [[ -n $addr ]] || addr=$(docker port "$name" 3080/tcp 2>/dev/null | head -n1 || true)
     if [[ -n $addr ]] && curl -fsS -o /dev/null "http://$addr/auth/status" 2>/dev/null; then
+      # Serving is not enough: Cordis reports an entry whose apply threw (or
+      # whose service never came) and keeps the rest of the tree running. That
+      # is how a tenancy that could not start bwrap once left the gate serving
+      # every user from one shared, unconfined harness with this smoke green.
+      local inert
+      inert=$(docker logs "$name" 2>&1 | grep -A20 -E 'did not activate' || true)
+      [[ -z $inert ]] || fail_with_logs "$name" "entries did not activate: $inert"
       printf '%s' "$addr"
       return 0
     fi

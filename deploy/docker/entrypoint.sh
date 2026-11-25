@@ -101,6 +101,14 @@ alma_overlay=$BACKEND_RENDER_DIR/compliance-alma-mcp.overlay.yml
 
 # ── the SSO gate ──────────────────────────────────────────────────────────────
 #
+# Under tenancy the gate injects the tenancy service, so it does not start until
+# tenancy has: sso-auth reads `tenancy` once, at apply, and finding none it
+# serves every user from this process's own harness — shared and unconfined.
+# Injecting it turns "tenancy failed" (bwrap blocked by the runtime's seccomp,
+# say) from that silent fallback into a gate that never listens, which the
+# healthcheck, the readiness probe and deploy/docker/smoke.sh all see.
+if [[ $TENANCY == on ]]; then sso_inject='webStartup, tenancy'; else sso_inject='webStartup'; fi
+#
 # Both rows below matter as much as the insert: the webserver moves to an
 # OS-assigned loopback port, and the runtime stops printing and opening the
 # INTERNAL url — which under this composition is the ungated one.
@@ -128,7 +136,7 @@ alma_overlay=$BACKEND_RENDER_DIR/compliance-alma-mcp.overlay.yml
 - insert:
     - id: sso-auth
       name: '@compliance/dsh-sso-auth'
-      inject: [webStartup]
+      inject: [${sso_inject}]
       config:
         issuer: ${SSO_ISSUER}
         clientId: ${SSO_CLIENT_ID}
