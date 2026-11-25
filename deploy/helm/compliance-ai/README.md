@@ -84,6 +84,14 @@ and either an ingress host or `sso.publicUrl`.
 - **Probes hit `/auth/status`**, which the gate answers without a session and
   only once every plugin has loaded — the image `HEALTHCHECK` check. The startup
   probe allows five minutes for the first boot.
+- **An egress NetworkPolicy is on by default** (`networkPolicy.enabled`). Since
+  dsh 0.2.1 `web_fetch` reaches private and cloud-metadata addresses on purpose,
+  and bubblewrap does not unshare the network, so the policy keeps every user's
+  agent on the public internet: private, link-local and carrier-grade ranges are
+  refused, cluster DNS is allowed. **An identity provider or ALMA reachable only
+  at a private address must be added to `networkPolicy.extraEgress`**, or login
+  and ALMA stop working. Needs a CNI that enforces NetworkPolicy; on one that
+  does not, the object is inert.
 - **Configuration changes restart the pod**: the entrypoint reads the
   environment once, so the ConfigMap's checksum is a pod annotation.
 

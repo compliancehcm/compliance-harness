@@ -124,6 +124,38 @@ ingress:
     # annotation on this Ingress.
     secretName: ""
 
+# ── egress fence ──────────────────────────────────────────────────────────────
+# A NetworkPolicy that keeps the agents off the cluster's and the node's private
+# addresses (dsh's web_fetch reaches them on purpose since 0.2.1). Needs a CNI
+# that enforces NetworkPolicy. See templates/networkpolicy.yaml.
+networkPolicy:
+  enabled: true
+  # The cluster DNS pods, allowed on port 53.
+  dns:
+    namespace: kube-system
+    podLabels:
+      k8s-app: kube-dns
+  deniedIPv4:
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+    - 127.0.0.0/8
+    - 169.254.0.0/16
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+  # Adds the ::/0 rule below; turn on for dual-stack clusters.
+  ipv6: false
+  deniedIPv6:
+    - fc00::/7
+    - fe80::/10
+  # Extra egress rules in NetworkPolicy `egress` form, for destinations that
+  # only resolve to a private address — an in-cluster Keycloak or ALMA, say:
+  #   - to:
+  #       - namespaceSelector:
+  #           matchLabels: { kubernetes.io/metadata.name: keycloak }
+  #     ports:
+  #       - { port: 8443, protocol: TCP }
+  extraEgress: []
+
 # ── confinement ───────────────────────────────────────────────────────────────
 # Tenancy wraps every backend in bubblewrap and probes it at boot: without these
 # the pod exits with "unprivileged user namespaces are probably unavailable on
