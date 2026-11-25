@@ -32,14 +32,16 @@ mise.toml
 dist-exe/
 /dist/
 apps/desktop/.desktop-build/
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-*
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/
-python/**/__pycache__/
+apps/desktop/.desktop-dev/
+python/sdk-runtime/src/deepseek_harness_runtime/runtime/
+__pycache__/
 python/**/.pytest_cache/
-packages/**/__pycache__/
 apps/web/dist/
+apps/cli/docs/
 .artifacts/
 .dsh-build/
+.dsh-report/
+.ui-review/
 # Rendered by deploy/docker/entrypoint.sh into the image tree, because a bwrap
 # backend can only read overlays under the harness root.
 .compliance-render/
@@ -51,6 +53,8 @@ worktrees/
 .typert-*/
 native/system/test/bin/
 
+# Generated company-signed CUA release record.
+/packages/experimental/cua-macos/cua-helper.json
 # Filled-in deployment environment (deploy/docker/compose.yml); the committed
 # template is compliance-ai.env.example.
 deploy/docker/*.env

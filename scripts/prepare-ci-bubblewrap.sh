@@ -2,18 +2,20 @@
 set -euo pipefail
 
 # Ubuntu's package transaction scans the hosted image's full dpkg database and
-# runs post-install hooks. CI needs only the archive payload, so this fetches
-# and verifies that payload and extracts it into the ephemeral runner directory,
-# without ever running an install.
-#
-# The version is resolved from the runner's own signed package index rather than
-# pinned here. A hardcoded `pool/` URL rots: the pool carries only the CURRENT
-# version of a package, so the day a security update supersedes the pinned one
-# every lane using this script dies on a 404 — which is what happened to
-# `bubblewrap_0.9.0-1ubuntu0.1_amd64.deb`. Integrity does not come from the
-# constant either way: it comes from the digest apt publishes in an index whose
-# signature apt has already checked, which is the same chain `apt-get install`
-# trusts.
+# runs post-install hooks. CI needs only the signed-archive payload, so pin and
+# verify that payload before extracting it into the ephemeral runner directory.
+# This amd64 build needs glibc 2.38+ and Linux 5.10+; Ubuntu 24.04 satisfies both.
+readonly BUBBLEWRAP_VERSION='0.12.0-1'
+readonly BUBBLEWRAP_SHA256='db4d572a7927bfd34cc9b8e24b56983efa8e0483d03da6c810f6caae081dcc36'
+# The recorded build remains addressable after Ubuntu prunes its live package pool.
+readonly BUBBLEWRAP_URL="https://launchpad.net/ubuntu/+source/bubblewrap/${BUBBLEWRAP_VERSION}/+build/33546835/+files/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
+# Workflows that run on ephemeral runners restore and save this directory as
+# `~/.cache/dsh-ci/bubblewrap` with actions/cache, so a warm cache needs no
+# Launchpad request; the persistent self-hosted pool keeps the directory itself.
+readonly BUBBLEWRAP_CACHE_DIR="${HOME}/.cache/dsh-ci/bubblewrap"
+
+# shellcheck source=scripts/ci-verified-download.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/ci-verified-download.sh"
 
 : "${RUNNER_TEMP:?prepare-ci-bubblewrap requires RUNNER_TEMP}"
 : "${GITHUB_PATH:?prepare-ci-bubblewrap requires GITHUB_PATH}"
@@ -23,36 +25,10 @@ if [[ "$(uname -s)" != 'Linux' || "$(uname -m)" != 'x86_64' ]]; then
   exit 1
 fi
 
-# Index only — no dpkg database scan, no maintainer scripts. A hosted image's
-# cached index can itself be old enough to name a superseded file.
-sudo apt-get update -qq
-
-# `'<uri>' <filename> <size> <ALGO>:<digest>`, one line for a single package.
-uris=$(apt-get download --print-uris bubblewrap | grep -- '_amd64\.deb' | tail -n 1)
-if [[ -z "$uris" ]]; then
-  echo 'prepare-ci-bubblewrap: apt named no amd64 bubblewrap archive' >&2
-  exit 1
-fi
-
-read -r quoted_url filename _size digest <<<"$uris"
-url=${quoted_url//\'/}
-algorithm=${digest%%:*}
-expected=${digest#*:}
-
-case "$algorithm" in
-  SHA512) checker='sha512sum' ;;
-  SHA256) checker='sha256sum' ;;
-  # Refused rather than accepted: a weak digest would make the verification
-  # below look like a check while proving nothing.
-  *) echo "prepare-ci-bubblewrap: apt offered only ${algorithm}, which is not accepted here" >&2; exit 1 ;;
-esac
-
-archive="${RUNNER_TEMP}/${filename}"
+archive="${BUBBLEWRAP_CACHE_DIR}/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
 root="${RUNNER_TEMP}/dsh-bubblewrap"
 
-echo "prepare-ci-bubblewrap: ${filename} from ${url} (${algorithm})"
-curl --fail --silent --show-error --location --retry 3 --retry-all-errors --output "$archive" "$url"
-printf '%s  %s\n' "$expected" "$archive" | "$checker" --check --status
+acquire_verified_archive "$BUBBLEWRAP_URL" "$BUBBLEWRAP_SHA256" "$archive"
 mkdir -p "$root"
 dpkg-deb --extract "$archive" "$root"
 printf '%s\n' "$root/usr/bin" >> "$GITHUB_PATH"
