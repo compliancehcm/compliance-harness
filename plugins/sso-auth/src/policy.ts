@@ -1,16 +1,24 @@
 /**
  * The administrative fence over the harness RPC surface.
  *
- * This exists because the harness's own protection does not survive a proxy.
- * `PRIVILEGED_METHODS` (`packages/client/connection/src/index.ts:89-119`) keeps
- * `settings.*`, `credentials.*`, `llm.discoverModels` and the preset-authoring
- * methods loopback-only, and enforces it by re-running the host trust fence with
- * an empty trusted-host list. Our proxy forwards from `127.0.0.1`, so every
- * authenticated user passes that pin unconditionally. Without this file, letting
- * a user in at all hands them the whole configuration plane.
+ * Every unary Remote call is `POST /api/<namespace>/<method>` (the endpoint is
+ * the path; the host refuses a body whose `method` disagrees with it — see
+ * `endpointFromPath` and the `method !== endpoint` check in
+ * `packages/client/connection/src/rpc-host.ts`). A backend treats every caller
+ * this proxy forwards as its owner, so nothing on the harness side stops an
+ * ordinary user from calling the configuration plane: this file is the fence,
+ * and hiding the matching UI (`plugins/compliance-tenancy/role-user.overlay.yml`)
+ * is cosmetics.
  *
- * Hiding the matching UI is not a substitute: omitting a client row removes the
- * button, not the endpoint. This is the fence; the UI is cosmetics.
+ * Endpoint names here must be real ones. Until 2026-11 this file matched the
+ * retired flat `credentials.set` form and so refused almost nothing; the smoke
+ * `tests/policy.mjs` now checks every name below against upstream's endpoint
+ * table, so a rename fails a test instead of silently opening the fence.
+ *
+ * Streams travel over the `/api/remote.mux` WebSocket, which this proxy does not
+ * inspect. Every stream method the harness ships is a read-only `watch`/`follow`
+ * (none in a namespace refused below), which is why that is acceptable; a
+ * mutating stream method would need a frame-level fence.
  */
 
 /** What the policy decided about one request. */
@@ -18,57 +26,58 @@ export type PolicyVerdict =
   | { readonly kind: 'allow' }
   | { readonly kind: 'refuse'; readonly reason: string }
 
-/** Flat apiproxy methods (`POST /api/<method>`) reserved for administrators. */
-const ADMIN_METHODS: ReadonlySet<string> = new Set([
+/**
+ * Remote namespaces reserved for administrators, matched on the namespace so a
+ * method added upstream cannot slip in.
+ */
+export const ADMIN_NAMESPACES: ReadonlySet<string> = new Set([
   // The platform's provider credentials, in every direction.
-  'credentials.describe', 'credentials.set', 'credentials.unset',
-  // Provider inventory, and a host-side GET to a caller-chosen baseURL — which
-  // is an SSRF probe as much as a model lister.
-  'llm.providers', 'llm.discoverModels',
+  'credentials',
+  // Runtime plugin code, the plugin manager, its inventory and its sources:
+  // installing packages and switching bundles in the backend's profile.
+  'dynamicCordisRunner', 'pluginInventory', 'pluginManager', 'pluginMarket', 'pluginRegistryProbe',
+  // Agent presets and permission presets carry shell-level trust; choosing one
+  // is an administrative act.
+  'agentPresets', 'permissionPresets',
+  // A personal DeepSeek account would change whose billing a request uses
+  // (`ctx.deepseekAuth`), and connector accounts are per-backend OAuth grants
+  // that cannot complete behind this proxy anyway.
+  'account', 'connectorAccounts',
+  // Publishing a session to an outside relay, host computer use, and the
+  // Claude Code bridge: none belongs to an ordinary user of this platform.
+  'liveshareShares', 'cuaAccess', 'claudeCodeMods',
+])
+
+/** Single endpoints reserved for administrators inside otherwise open namespaces. */
+export const ADMIN_ENDPOINTS: ReadonlySet<string> = new Set([
+  // A host-side GET to a caller-chosen baseURL — an SSRF probe as much as a
+  // model lister — and the provider editor's inventory.
+  'llm/discoverModels', 'llm/listConfigurableProviders',
   // Hands `settings.yaml` to the platform's document opener.
-  'settings.openDocument',
-  // Agent presets carry the same trust as shell access, and `read`/`copy`/
-  // `openDocument` expose or clone their composition.
-  'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
-  // These act on the host machine OUTSIDE any confinement: a native directory
-  // dialog and a native file opener. `host.listDirectory` and
-  // `host.createDirectory` are deliberately NOT here — the workspace picker
-  // needs them to work at all, and what bounds them is the backend's namespace,
-  // in which no other user's directory exists. Refusing them made choosing a
-  // workspace impossible, which is how this was found.
-  'host.pickDirectory', 'host.openPath',
+  'settings/openSettingsDocument',
+  // A native dialog and a native opener on the host machine, outside any
+  // confinement. `directoryPicker/list` and `createDirectory` stay open: the
+  // in-browser workspace picker needs them, and the backend's namespace bounds
+  // what they can see.
+  'directoryPicker/pick', 'session/openWorkspacePath',
 ])
 
 /**
- * Typert Remote namespaces (`POST /api/<ns>/<method>`) reserved for
- * administrators, matched on the namespace so a new method cannot slip in.
- *
- * `dynamicCordisRunner` approves and evaluates dynamically defined plugin code —
- * the most dangerous namespace on the wire, and it ships in the web composition.
- * `pluginManager` installs packages with pnpm and switches bundles and rows on
- * and off in the backend's profile; its sidebar page is removed from the user
- * role, and this is what stops a crafted call from reaching it anyway.
+ * Settings namespaces an ordinary user may write. They are row ids: Appearance
+ * (`ui-theme`, which also holds the font choice), Language (`locale`) and the
+ * composer (`ui-conversation`). Everything else — `shell`, `agent-loop`,
+ * `mcp-client`, `llm-pi-ai`, … — is configuration and is refused.
  */
-const ADMIN_NAMESPACES: ReadonlySet<string> = new Set(['dynamicCordisRunner', 'pluginInventory', 'pluginManager'])
+export const USER_SETTINGS_NAMESPACES: ReadonlySet<string> = new Set(['ui-theme', 'locale', 'ui-conversation'])
 
-/**
- * Settings namespaces an ordinary user may read and write.
- *
- * `settings.*` cannot be refused wholesale: Appearance, Language and the
- * composer's Enter behaviour all persist through the same four methods. So the
- * decision is per namespace, and the namespace is in the request body.
- */
-const USER_SETTINGS_NAMESPACES: ReadonlySet<string> = new Set([
-  'ui-theme', 'locale', 'ui-conversation', 'ui-onboarding',
-])
+/** Settings writes whose first argument `ns` names the namespace written. */
+export const SETTINGS_WRITES: ReadonlySet<string> = new Set(['settings/update', 'settings/replace', 'settings/mutate'])
 
-/** The four settings methods whose body names a namespace. */
-const SETTINGS_METHODS: ReadonlySet<string> = new Set([
-  'settings.describe', 'settings.update', 'settings.replace', 'settings.mutate',
-])
+/** `session/create`, whose `request.agentPreset` is a back door around `agentPresets`. */
+export const SESSION_CREATE = 'session/create'
 
-/** Methods whose body must be inspected before the request can be judged. */
-const BODY_INSPECTED: ReadonlySet<string> = new Set([...SETTINGS_METHODS, 'session.create'])
+/** Endpoints whose body must be inspected before the request can be judged. */
+const BODY_INSPECTED: ReadonlySet<string> = new Set([...SETTINGS_WRITES, SESSION_CREATE])
 
 /** Largest body this policy will buffer; the inspected calls are all tiny. */
 export const MAX_INSPECTED_BODY_BYTES = 256 * 1024
@@ -77,43 +86,38 @@ export const MAX_INSPECTED_BODY_BYTES = 256 * 1024
 const API_PREFIX = '/api/'
 
 /**
- * The method segment of an `/api` request, or undefined when the path is not an
- * RPC call (the event streams, `respond`, `session.export`, the frontend).
+ * The `<namespace>/<method>` endpoint of an `/api` request, or undefined when the
+ * path is not a unary Remote call (the stream WebSocket, exact Fetch routes such
+ * as file reads, the frontend).
+ * @param pathname - the request pathname, already normalized by WHATWG URL
+ *   parsing exactly as the host normalizes it.
+ * @returns the endpoint, or undefined.
  */
 export function apiMethodOf(pathname: string): string | undefined {
   if (!pathname.startsWith(API_PREFIX)) return undefined
   const rest = pathname.slice(API_PREFIX.length)
-  if (rest === '' || rest === 'respond' || rest.startsWith('events.')) return undefined
-  return rest
+  return rest === '' ? undefined : rest
 }
 
 /**
  * Whether this request needs its body buffered before a verdict is possible.
  * Everything else is decided from the path alone and keeps streaming.
- * @param method - the `/api` method segment.
+ * @param method - the `/api` endpoint.
  * @returns whether the caller must supply the body.
  */
 export function needsBodyToJudge(method: string | undefined): boolean {
   return method !== undefined && BODY_INSPECTED.has(method)
 }
 
-/** Read the `ns` a settings call addresses, from its JSON envelope. */
-function settingsNamespaceOf(body: unknown): string | undefined {
+/** The named arguments of a Remote call envelope: `{ payload: { args } }`. */
+function argsOf(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null) return undefined
   const payload = (body as { payload?: unknown }).payload
-  const source = typeof payload === 'object' && payload !== null ? payload : body
-  const ns = (source as { ns?: unknown; namespace?: unknown }).ns
-    ?? (source as { namespace?: unknown }).namespace
-  return typeof ns === 'string' ? ns : undefined
-}
-
-/** Read the `agentPreset` a session-create call names, if any. */
-function requestedPresetOf(body: unknown): string | undefined {
-  if (typeof body !== 'object' || body === null) return undefined
-  const payload = (body as { payload?: unknown }).payload
-  const source = typeof payload === 'object' && payload !== null ? payload : body
-  const preset = (source as { agentPreset?: unknown }).agentPreset
-  return typeof preset === 'string' ? preset : undefined
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const args = (payload as { args?: unknown }).args
+  return typeof args === 'object' && args !== null && !Array.isArray(args)
+    ? args as Record<string, unknown>
+    : undefined
 }
 
 /** What the policy knows about the caller. */
@@ -138,46 +142,36 @@ export function judge(
 ): PolicyVerdict {
   if (subject.admin) return { kind: 'allow' }
 
-  const method = apiMethodOf(pathname)
-  if (method === undefined) return { kind: 'allow' }
+  const endpoint = apiMethodOf(pathname)
+  if (endpoint === undefined) return { kind: 'allow' }
 
-  const slash = method.indexOf('/')
-  if (slash !== -1) {
-    const namespace = method.slice(0, slash)
-    return ADMIN_NAMESPACES.has(namespace)
-      ? { kind: 'refuse', reason: `${namespace} is administrator-only` }
-      : { kind: 'allow' }
+  const namespace = endpoint.split('/', 1)[0]
+  if (ADMIN_NAMESPACES.has(namespace)) {
+    return { kind: 'refuse', reason: `${namespace} is administrator-only` }
+  }
+  if (ADMIN_ENDPOINTS.has(endpoint)) {
+    return { kind: 'refuse', reason: `${endpoint} is administrator-only` }
   }
 
-  if (ADMIN_METHODS.has(method)) {
-    return { kind: 'refuse', reason: `${method} is administrator-only` }
-  }
-
-  if (SETTINGS_METHODS.has(method)) {
-    const ns = settingsNamespaceOf(body)
-    if (ns === undefined) {
-      // `settings.describe` legitimately carries no namespace: it answers for
-      // every registered one at once. Refusing it would leave Appearance and
-      // Language unable to read their own values, so it is allowed and the
-      // reading of other namespaces' values is accepted — they are redacted of
-      // secrets by the host before they are serialized.
-      return method === 'settings.describe'
-        ? { kind: 'allow' }
-        : { kind: 'refuse', reason: `${method} named no settings namespace` }
+  if (SETTINGS_WRITES.has(endpoint)) {
+    const ns = argsOf(body)?.['ns']
+    if (typeof ns !== 'string') {
+      return { kind: 'refuse', reason: `${endpoint} named no settings namespace` }
     }
     return USER_SETTINGS_NAMESPACES.has(ns)
       ? { kind: 'allow' }
       : { kind: 'refuse', reason: `settings namespace ${ns} is administrator-only` }
   }
 
-  if (method === 'session.create') {
-    const preset = requestedPresetOf(body)
-    // `session.create` carries an `agentPreset` field, which is the back door
-    // around any gate on `agentPreset.select`: a preset is a different toolset
-    // and carries shell-level trust.
+  if (endpoint === SESSION_CREATE) {
+    const request = argsOf(body)?.['request']
+    const preset = typeof request === 'object' && request !== null
+      ? (request as { agentPreset?: unknown }).agentPreset
+      : undefined
+    // A preset is a different toolset carrying shell-level trust.
     return preset === undefined
       ? { kind: 'allow' }
-      : { kind: 'refuse', reason: `choosing agent preset ${preset} is administrator-only` }
+      : { kind: 'refuse', reason: `choosing agent preset ${String(preset)} is administrator-only` }
   }
 
   return { kind: 'allow' }

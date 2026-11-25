@@ -79,6 +79,11 @@ jobs:
           echo "::group::sso-auth broker"
           node --experimental-transform-types plugins/sso-auth/tests/broker.mjs || status=1
           echo "::endgroup::"
+          # The administrative fence, judged against upstream's real endpoint
+          # names; a rename upstream fails here instead of reopening the fence.
+          echo "::group::sso-auth policy"
+          node plugins/sso-auth/tests/policy.mjs || status=1
+          echo "::endgroup::"
           exit "$status"
 
       # The artifact frame's opaque origin is a security property, and asserting
