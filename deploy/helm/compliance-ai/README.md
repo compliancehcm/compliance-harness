@@ -8,11 +8,11 @@ environment is a value here; `values.yaml` documents each one.
 ## Get it
 
 CI publishes the chart to GitHub Container Registry as an OCI artifact, pinned
-to the image digest the same run built and booted:
+to an image digest that booted in CI:
 
 | Source | Chart version | Image |
 |---|---|---|
-| tag `v1.2.3` | `1.2.3` | `v1.2.3`, by digest |
+| tag `v1.2.3` | `1.2.3` | `v1.2.3` — the image `master` built for that commit, promoted without a rebuild ([releases](../../docker/README.md#releases-are-promoted-not-rebuilt)), by digest |
 | push to `master` | `<Chart.yaml version>-master.<run>` (prerelease) | `sha-<commit>`, by digest |
 
 ```sh

@@ -64,8 +64,8 @@ and the client build stamps the commit into its artifacts.
 
 ## Pipeline
 
-`docker-image.yml` runs on every push to `master`, `feat/compliance-**` and
-`v*` tags, and on pull requests touching `deploy/docker/**` or `plugins/**`:
+`docker-image.yml` runs on every push to `master` and `feat/compliance-**`,
+and on pull requests touching `deploy/docker/**` or `plugins/**`:
 
 1. **Build** into the runner's engine as `compliance-ai:smoke`.
 2. **Boot smoke** — `smoke.sh` starts that image twice, against a fictitious
@@ -76,10 +76,11 @@ and the client build stamps the commit into its artifacts.
      gateway itself, because under tenancy they load only in a per-user backend
      that a real login spawns.
 
-   Each boot must answer `/auth/status` anonymously, redirect a navigation to
-   `/auth/login` and refuse an API call with 401. The `HEALTHCHECK` command is
-   run against the first.
-3. **Publish** — the same build, a cache hit, pushed with the branch, tag and
+   Each boot must answer `/auth/status` anonymously, log no entry that "did
+   not activate", redirect a navigation to `/auth/login` and refuse an API call
+   with 401. The `HEALTHCHECK` command is run against the first, and the image's
+   node is checked against `engines`.
+3. **Publish** — the same build, a cache hit, pushed with the branch and
    `sha-<commit>` tags, plus `latest` on `master`. Pull requests stop after the
    smoke.
 
@@ -90,6 +91,35 @@ The job exposes `image` and `digest` as outputs, and the run summary prints
    `deploy/helm/compliance-ai` with that digest written into its values and
    pushes it to `oci://ghcr.io/<owner>/charts/compliance-ai`, the
    organization's shared chart namespace.
+
+### Releases are promoted, not rebuilt
+
+A `vX.Y.Z` tag builds nothing. The `promote` job takes the image `master`
+already built, smoke-tested and published for the tagged commit
+(`sha-<commit>` — the one homologation runs) and adds the `vX.Y.Z` tag to that
+**same manifest**, then the chart job publishes chart `X.Y.Z` over it. What
+production pulls is byte for byte what homologation ran, and a release takes
+seconds instead of a full build.
+
+```sh
+# after the release commit is on master and its Docker image run is green
+gh release create v1.0.0 --target master --generate-notes
+```
+
+(`git tag -a v1.0.0 <commit> && git push origin v1.0.0` does the same without
+a GitHub Release.) The job refuses, rather than falling back to a build, when:
+
+- the tag is not `vMAJOR.MINOR.PATCH` (optionally `-prerelease`): the chart
+  version is the tag without its `v`, and Helm requires SemVer;
+- the tagged commit is not on `master`;
+- `master` published no image for that commit and no build of it is running —
+  for instance a docs-only commit, which `master` does not build. Tag the last
+  commit that was built. A build still running is waited for (up to two hours),
+  so tagging right after a merge works.
+
+The promotion uses `imagetools create --prefer-index=false` (without it a
+single manifest gets wrapped in a new index, i.e. a new digest) and then checks
+that the new tag resolves to the promoted digest.
 
 Run the smoke locally against any build:
 

@@ -12,6 +12,13 @@ name: Docker image
 # engine first, `deploy/docker/smoke.sh` starts it in both compositions, and only
 # then is the same build (a cache hit) pushed. The job's `image` and `digest`
 # outputs are the handle a deploy job consumes; deploy by digest, never by tag.
+#
+# Releases are PROMOTED, never rebuilt. A `vX.Y.Z` tag (pushed directly, or by
+# creating a GitHub Release) does not build anything: the `promote` job takes the
+# image master already built, smoke-tested and published for that exact commit
+# (`sha-<commit>`, the one homologation runs), and adds the `vX.Y.Z` tag to that
+# same manifest. Production therefore pulls the very digest homologation ran, and
+# a release takes seconds. The chart job then publishes chart X.Y.Z over it.
 
 on:
   push:
@@ -55,6 +62,8 @@ env:
 jobs:
   image:
     name: build and publish
+    # A release tag promotes the image master already built; see `promote`.
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
@@ -164,9 +173,129 @@ jobs:
             echo 'Run it with `deploy/docker/compose.yml`, or with the flags in `deploy/docker/README.md` — bubblewrap needs a kernel privilege the default container profile withholds.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The Helm chart, pinned to the digest the job above just published and
-  # smoke-tested. Only from master and from `v*` tags: a feature branch image is
-  # not something a cluster should be able to pull through a released chart.
+  # A `vX.Y.Z` tag: retag the image master published for the tagged commit,
+  # without building. Refuses, rather than falls back to a build, when there is
+  # no such image: a release that is not byte-for-byte what homologation ran is
+  # exactly what this process exists to prevent.
+  promote:
+    name: promote release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    permissions:
+      contents: read
+      packages: write
+      # `gh run list`, to wait for a master build of this commit still running.
+      actions: read
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+      digest: ${{ steps.promote.outputs.digest }}
+    steps:
+      # Full history: the tagged commit must be proven to be on master.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve image reference
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}/compliance-ai" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The chart version is the tag without its `v`, and Helm only accepts
+      # SemVer 2, so `v1.0` would fail at the very end; refuse it up front.
+      - name: Check the tag
+        run: |
+          if [[ ! $GITHUB_REF_NAME =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::release tags are vMAJOR.MINOR.PATCH (e.g. v1.0.0, v1.2.0-rc.1); got $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+      # A release comes from master: that is what homologation deploys. An image
+      # built from a feature branch also carries a `sha-` tag, and must not be
+      # promotable just because someone tagged that branch.
+      - name: Check the commit is on master
+        id: commit
+        run: |
+          commit=$(git rev-parse HEAD)
+          git fetch --no-tags --quiet origin master
+          if ! git merge-base --is-ancestor "$commit" origin/master; then
+            echo "::error::$GITHUB_REF_NAME points at $commit, which is not on master. Tag a commit master has built."
+            exit 1
+          fi
+          echo "sha=$commit" >> "$GITHUB_OUTPUT"
+
+      # Tagging right after a merge is normal, and master's build of that commit
+      # may still be running; wait for it instead of failing. Missing image with
+      # no build pending (e.g. a docs-only commit, which master does not build)
+      # is an error that names what to do.
+      - name: Find the image master published for this commit
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ steps.image.outputs.ref }}
+          COMMIT: ${{ steps.commit.outputs.sha }}
+        run: |
+          src="$REF:sha-$COMMIT"
+          deadline=$((SECONDS + 120 * 60))
+          until docker buildx imagetools inspect "$src" >/dev/null 2>&1; do
+            pending=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow docker-image.yml --branch master \
+              --commit "$COMMIT" --json status --jq '[.[] | select(.status != "completed")] | length')
+            if [[ $pending == 0 ]]; then
+              echo "::error::no image $src: master has not published one for $COMMIT and no build of it is running. Tag the latest commit master built (docs-only commits are not built), or re-run the master build."
+              exit 1
+            fi
+            (( SECONDS < deadline )) || { echo "::error::master's build of $COMMIT did not publish $src within 120 minutes"; exit 1; }
+            echo "waiting for master's build of $COMMIT ($pending run(s) in progress)"
+            sleep 60
+          done
+          digest=$(docker buildx imagetools inspect "$src" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::could not read the digest of $src"; exit 1; }
+          echo "ref=$src" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      # `--prefer-index=false` keeps the source manifest as it is. Without it a
+      # single-manifest source is wrapped in a new index, i.e. a NEW digest,
+      # which would defeat the point; the check after the push proves it held.
+      - name: Promote
+        id: promote
+        env:
+          REF: ${{ steps.image.outputs.ref }}
+          DIGEST: ${{ steps.source.outputs.digest }}
+        run: |
+          docker buildx imagetools create --prefer-index=false --tag "$REF:$GITHUB_REF_NAME" "$REF@$DIGEST"
+          promoted=$(docker buildx imagetools inspect "$REF:$GITHUB_REF_NAME" --format '{{json .Manifest}}' | jq -r .digest)
+          if [[ $promoted != "$DIGEST" ]]; then
+            echo "::error::$REF:$GITHUB_REF_NAME resolves to $promoted, not the promoted $DIGEST"
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize
+        run: |
+          {
+            echo '### Compliance AI release'
+            echo
+            echo "\`${{ steps.image.outputs.ref }}:$GITHUB_REF_NAME\` is the image master built for \`${{ steps.commit.outputs.sha }}\` (\`${{ steps.source.outputs.ref }}\`), promoted without a rebuild."
+            echo
+            echo 'Deploy by digest:'
+            echo '```'
+            echo "${{ steps.image.outputs.ref }}@${{ steps.promote.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The Helm chart, pinned to the digest `image` just published and smoke-tested
+  # (master) or `promote` just tagged (a release). Only from master and from `v*`
+  # tags: a feature branch image is not something a cluster should be able to
+  # pull through a released chart.
   #
   # Versions: a `v1.2.3` tag publishes chart 1.2.3 over image tag v1.2.3;
   # master publishes `<Chart.yaml version>-master.<run number>` over
@@ -178,13 +307,19 @@ jobs:
   # cluster pulls every company chart with one registry login.
   chart:
     name: publish helm chart
-    needs: image
+    needs: [image, promote]
+    # Exactly one of the two runs per event; `!cancelled()` keeps the skipped one
+    # from skipping this job, and an empty digest means the one that ran failed.
     if: >-
-      github.event_name == 'push'
+      !cancelled()
+      && github.event_name == 'push'
       && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-      && needs.image.outputs.digest != ''
+      && (needs.image.outputs.digest || needs.promote.outputs.digest) != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      IMAGE: ${{ needs.promote.outputs.image || needs.image.outputs.image }}
+      DIGEST: ${{ needs.promote.outputs.digest || needs.image.outputs.digest }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -216,7 +351,7 @@ jobs:
           deploy/helm/package.sh
           "${{ steps.version.outputs.version }}"
           "${{ steps.version.outputs.app_version }}"
-          "${{ needs.image.outputs.digest }}"
+          "$DIGEST"
           dist
 
       - name: Push
@@ -231,7 +366,7 @@ jobs:
           {
             echo '### Helm chart'
             echo
-            echo "chart \`compliance-ai\` ${{ steps.version.outputs.version }} → image \`${{ needs.image.outputs.image }}@${{ needs.image.outputs.digest }}\`"
+            echo "chart \`compliance-ai\` ${{ steps.version.outputs.version }} → image \`$IMAGE@$DIGEST\`"
             echo
             echo '```'
             echo "helm upgrade --install compliance-ai ${{ steps.version.outputs.registry }}/compliance-ai \\"
