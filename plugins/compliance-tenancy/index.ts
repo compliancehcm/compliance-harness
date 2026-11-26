@@ -21,6 +21,7 @@ import { linkPlugins, provision, userDirName, writeHomePatch } from './src/provi
 import { startBackend } from './src/backend.ts'
 import { BackendPool } from './src/pool.ts'
 import type { Acquisition } from './src/pool.ts'
+import { RoleStanding } from './src/standing.ts'
 import type { CredentialsFacade, HostContext } from './src/host.ts'
 
 /** Cordis plugin name. */
@@ -47,8 +48,15 @@ const TOKEN_KEY_ENV = 'COMPLIANCE_SSO_TOKEN_KEY'
 export interface TenantRequest {
   /** The `sub` claim — the stable per-user key. */
   readonly subject: string
-  /** Whether this user reaches the administrative composition. */
+  /** Whether this session reaches the administrative composition. */
   readonly admin: boolean
+  /**
+   * When this session's login completed (epoch ms). A user may hold several
+   * sessions opened before and after a role change; the newest login's `admin`
+   * decides the backend's composition, so an older one cannot flip it back and
+   * force a restart on every request. Absent counts as the oldest possible.
+   */
+  readonly authenticatedAt?: number
 }
 
 /** Where a request should be sent, or why it cannot be. */
@@ -108,11 +116,16 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
   const harness = resolveHarnessPaths(config.harnessRoot)
   mkdirSync(config.usersRoot, { recursive: true, mode: 0o700 })
 
-  // Administrative standing travels with each request, but the pool's starter
-  // receives only a key, so the last-seen role per user is kept here. A change
-  // takes effect on that user's next backend start — which is also the only
-  // moment the composition it selects could differ.
-  const admins = new Set<string>()
+  // Administrative standing travels with each request (it is fixed at login),
+  // and the composition it selects is fixed when a backend starts. The pool
+  // compares the two on every request and restarts a backend whose role no
+  // longer matches, so a role granted or revoked in the identity provider takes
+  // effect at the user's next login, not at the next pod restart.
+  const ADMIN = 'admin'
+  const USER = 'user'
+  const standing = new RoleStanding()
+  const variantFor = (request: TenantRequest): string =>
+    standing.resolve(request.subject, request.admin, request.authenticatedAt) ? ADMIN : USER
 
   // One broker key per running backend, minted at its start and forgotten when
   // it stops. The key is what makes a token request mean "this user": a
@@ -131,7 +144,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
     maxBackends: config.maxBackends,
     idleReapMs: config.idleReapMs,
     logger: ctx.logger as unknown as Pick<Console, 'info' | 'warn'>,
-    starter: async (key, port) => {
+    starter: async (key, port, variant) => {
       const paths = provision(config.usersRoot, key)
       writeHomePatch(paths, [])
       linkPlugins(paths, config.pluginPackages)
@@ -139,7 +152,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
         port,
         confinement: config.confinement,
         env: { ...await backendCredentials(ctx, config.forwardCredentials), ...brokerEnv(key) },
-        patches: admins.has(key) ? config.adminPatches : config.userPatches,
+        patches: variant === ADMIN ? config.adminPatches : config.userPatches,
         publicUrl: config.publicUrl,
       })
       try {
@@ -179,10 +192,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
 
   const service: TenancyService = {
     target: async (request) => {
-      const key = request.subject
-      if (request.admin) admins.add(key)
-      else admins.delete(key)
-      return describe(await pool.acquire(key))
+      return describe(await pool.acquire(request.subject, variantFor(request)))
     },
     trackSocket: (subject, delta) => {
       const backend = pool.lookup(subject)

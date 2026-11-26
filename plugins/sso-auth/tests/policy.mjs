@@ -48,6 +48,7 @@ await check('the configuration plane is refused to an ordinary user, by its real
     'agentPresets/select', 'permissionPresets/set', 'pluginManager/installBundle', 'pluginMarket/setIndexes',
     'dynamicCordisRunner/getClientCode', 'account/startSignIn', 'connectorAccounts/start',
     'liveshareShares/create', 'cuaAccess/requestPermission', 'directoryPicker/pick', 'session/openWorkspacePath',
+    'terminal/create', 'terminal/list',
   ]) {
     assert.ok(endpoints.has(endpoint), `${endpoint} is not a real endpoint`)
     assert.equal(judge(`/api/${endpoint}`, user).kind, 'refuse', endpoint)
@@ -63,7 +64,7 @@ await check('what an ordinary user needs stays open', () => {
   for (const endpoint of [
     'session/prompt', 'session/list', 'session/modelCatalog', 'session/selectModel', 'workspace/create',
     'directoryPicker/list', 'directoryPicker/createDirectory', 'llm/listProviders', 'settings/describe',
-    'terminal/create', 'mcpManager/restart',
+    'mcpManager/restart',
   ]) {
     assert.ok(endpoints.has(endpoint), `${endpoint} is not a real endpoint`)
     assert.equal(judge(`/api/${endpoint}`, user).kind, 'allow', endpoint)

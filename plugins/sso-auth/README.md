@@ -138,7 +138,7 @@ user without this policy hands them all of it.
 Refused for a non-admin, by namespace: `credentials`, `dynamicCordisRunner`,
 `pluginInventory`, `pluginManager`, `pluginMarket`, `pluginRegistryProbe`,
 `agentPresets`, `permissionPresets`, `account`, `connectorAccounts`,
-`liveshareShares`, `cuaAccess`, `claudeCodeMods`. By endpoint:
+`liveshareShares`, `cuaAccess`, `claudeCodeMods`, `terminal`. By endpoint:
 `llm/discoverModels` (a host-side GET to a caller-chosen URL),
 `llm/listConfigurableProviders`, `settings/openSettingsDocument`,
 `directoryPicker/pick` and `session/openWorkspacePath` (native dialogs and
@@ -158,8 +158,10 @@ Two cases are decided from the request **body** (`payload.args`), not the path:
 
 Bodies are buffered only for those calls (capped at 256 KB, larger is refused
 rather than judged blind); everything else keeps streaming. Streams travel over
-the `/api/remote.mux` WebSocket, which is not inspected: every stream method the
-harness ships is a read-only `watch`/`follow`.
+the `/api/remote.mux` WebSocket, which is not inspected: the stream methods an
+ordinary user's backend serves are read-only `watch`/`follow`s. The interactive
+`terminal/attach` stream is kept out by composition, since the user role
+disables the terminal controller, and not by this policy.
 
 **Keep the names real.** Until 2026-11 this policy matched the retired flat
 `credentials.set` form and refused almost nothing while every test passed.

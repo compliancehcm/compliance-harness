@@ -42,7 +42,12 @@ export interface CredentialsFacade {
  * this interface is the whole contract between them.
  */
 export interface TenancyFacade {
-  target: (request: { readonly subject: string; readonly admin: boolean }) => Promise<
+  target: (request: {
+    readonly subject: string
+    readonly admin: boolean
+    /** When this session's login completed; the newest login's `admin` picks the composition. */
+    readonly authenticatedAt: number
+  }) => Promise<
     | {
       readonly kind: 'ready'
       readonly host: string

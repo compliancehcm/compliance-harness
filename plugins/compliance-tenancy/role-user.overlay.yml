@@ -57,10 +57,16 @@
   disabled: true
 
 # The dynamic Cordis runner: it approves and evaluates plugin code defined at
-# runtime. Both halves go, so nothing polls the endpoints the gateway refuses
-# and the console stays clean.
-- id: cordis-host-runner
-  disabled: true
+# runtime. The browser half and its UI go, so nothing polls the endpoints the
+# gateway refuses (`dynamicCordisRunner`) and the console stays clean.
+#
+# `cordis-host-runner` must STAY ENABLED. Besides the dynamic runner it provides
+# `cordisInspect`, which `tool-cordis` injects, and `tool-cordis` sits in the
+# `standard` and `cordis` agent presets. Since dsh 0.2.3 a preset with one
+# pending row is refused whole (`agent-preset/invalid`), so disabling it broke
+# every ordinary user's sessions, old and new. Its RPC surface is the
+# `dynamicCordisRunner` namespace, which the gateway refuses to non-admins, and
+# only the disabled client half calls it. tests/role-presets.mjs guards this.
 - id: cordis-client-runner
   disabled: true
 - id: ui-cordis
@@ -85,4 +91,34 @@
 - id: ui-account-notifications
   disabled: true
 - id: ui-connector-account
+  disabled: true
+
+# The conversation's view tabs. With both rows gone only the Chat view is left,
+# and the header draws no tab row at all for a single view.
+#
+# `ui-trajectory` is the "Trajetória" tab: the raw run log, a developer view.
+# Both halves go; the host half's only service, `sessionToolResults`, is the
+# read-only `toolResults` inspection that this view alone reads.
+- id: ui-trajectory
+  disabled: true
+# `entry-customization` fills the "…" More menu beside the tabs (and the same
+# menu in the right sidebar). Its rows start a session on the `cordis` agent
+# preset to build a custom view, which the gateway refuses to a non-admin
+# (`session/create` with an agentPreset), so for an ordinary user the menu only
+# leads to an error. With no rows the right sidebar's "Mais ferramentas" card,
+# which lists the same menu, is not drawn either.
+- id: entry-customization
+  disabled: true
+
+# The interactive terminal: the right sidebar's "Novo terminal" card, its panel
+# and Ctrl+` (`ui-sidebar-terminal`), and the host controller behind them
+# (`terminal-controller`, Remote namespace `terminal`). The host row goes too,
+# not only the button: `terminal/attach` is a stream over /api/remote.mux, which
+# the gateway policy does not inspect, so the endpoints must not exist at all.
+# The gateway also refuses the `terminal` namespace as a second layer. Nothing
+# in any shipped agent preset injects `terminalController` (only the
+# experimental terminal-panel does), so no preset loses a row.
+- id: ui-sidebar-terminal
+  disabled: true
+- id: terminal-controller
   disabled: true

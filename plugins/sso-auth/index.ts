@@ -115,6 +115,7 @@ export async function apply(ctx: HostContext, rawConfig: unknown): Promise<void>
         const target = await tenancy.target({
           subject: session.principal.subject,
           admin: session.admin,
+          authenticatedAt: session.authenticatedAt,
         })
         switch (target.kind) {
           case 'ready':
