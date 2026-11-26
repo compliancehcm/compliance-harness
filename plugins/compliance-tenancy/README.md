@@ -89,10 +89,19 @@ gateway's request policy (`plugins/sso-auth/src/policy.ts`), which refuses the
 endpoints behind them. Omitting a client row does not remove an RPC.
 
 `role-user.overlay.yml` drops Models, plugin configuration, the sidebar Plugins
-page, the Loader inventory, agent presets, permission presets, and both halves
-of the dynamic Cordis runner — that last one both because it evaluates plugin code defined at
-runtime and because leaving it mounted would have it poll endpoints the gateway
-refuses, filling the console with its own failures.
+page, agent presets, permission presets, the account and connector surfaces,
+the browser half of the dynamic Cordis runner, the conversation's Trajectory
+tab and "…" view menu (with the right sidebar's "Mais ferramentas"), and the
+interactive terminal, both its button and its host controller.
+
+**Never disable a row an agent preset needs.** Since dsh 0.2.3 the agent's
+tools live inside an agent preset, and a preset with a single pending row is
+refused whole (`agent-preset/invalid`). Every session of that role, old and new,
+then shows "Sessão indisponível". That is why `cordis-host-runner` stays mounted:
+it provides `cordisInspect`, which `tool-cordis` in the `standard` preset
+injects. Its RPC namespace `dynamicCordisRunner` is refused by the gateway.
+`tests/role-presets.mjs` boots each role and fails if its default preset is
+broken, or if a role is served a browser half it should not have.
 
 `role-admin.overlay.yml` keeps the shipped composition, sidebar Plugins page
 included. It still replaces the native directory chooser: an administrator's

@@ -84,6 +84,13 @@ jobs:
           echo "::group::sso-auth policy"
           node plugins/sso-auth/tests/policy.mjs || status=1
           echo "::endgroup::"
+          # Boots the built CLI once per role (hardening + role overlay): the
+          # default agent preset must be usable and each role served the agreed
+          # browser halves. A role overlay disabling a row a preset tool needs
+          # took every ordinary user's sessions down once; this is the guard.
+          echo "::group::tenancy role compositions"
+          node plugins/compliance-tenancy/tests/role-presets.mjs || status=1
+          echo "::endgroup::"
           exit "$status"
 
       # The artifact frame's opaque origin is a security property, and asserting

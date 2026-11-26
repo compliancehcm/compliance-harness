@@ -16,9 +16,11 @@
  * table, so a rename fails a test instead of silently opening the fence.
  *
  * Streams travel over the `/api/remote.mux` WebSocket, which this proxy does not
- * inspect. Every stream method the harness ships is a read-only `watch`/`follow`
- * (none in a namespace refused below), which is why that is acceptable; a
- * mutating stream method would need a frame-level fence.
+ * inspect. The stream methods an ordinary user's backend serves are read-only
+ * `watch`/`follow`s, which is why that is acceptable. The one interactive stream,
+ * `terminal/attach`, is kept out by composition instead: the user role disables
+ * the terminal controller (`plugins/compliance-tenancy/role-user.overlay.yml`).
+ * Any other mutating stream method would need a frame-level fence.
  */
 
 /** What the policy decided about one request. */
@@ -46,6 +48,10 @@ export const ADMIN_NAMESPACES: ReadonlySet<string> = new Set([
   // Publishing a session to an outside relay, host computer use, and the
   // Claude Code bridge: none belongs to an ordinary user of this platform.
   'liveshareShares', 'cuaAccess', 'claudeCodeMods',
+  // The interactive terminal. The user role also drops the host controller, so
+  // its streams (`terminal/attach`, over the uninspected mux) do not exist there;
+  // this refuses the unary half should a composition ever mount it again.
+  'terminal',
 ])
 
 /** Single endpoints reserved for administrators inside otherwise open namespaces. */
