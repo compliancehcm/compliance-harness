@@ -119,3 +119,19 @@
   disabled: true
 - id: terminal-controller
   disabled: true
+
+# Scheduled tasks (the service, the agent's schedule_* tools and the "Tarefas de
+# automação" page). Off for ordinary users and on for administrators, who are
+# evaluating it. It is not reliable here yet:
+# - the Schedule service delivers only while its Host runs, and tenancy stops a
+#   backend after COMPLIANCE_IDLE_REAP_MINUTES without traffic, and on every pod
+#   restart. A task due while the user is away does not fire; once the backend
+#   is back, a recurring task delivers only its latest missed occurrence.
+# - a delivered run that calls ALMA needs the user's SSO token, which the broker
+#   hands out only from a live gateway session (idle 60 min, absolute 8 h).
+# The schedule_* tools register only while the service exists, so disabling it
+# removes them from the model; no preset row is left pending.
+- id: schedule
+  disabled: true
+- id: ui-schedule
+  disabled: true
