@@ -89,7 +89,7 @@ gateway's request policy (`plugins/sso-auth/src/policy.ts`), which refuses the
 endpoints behind them. Omitting a client row does not remove an RPC.
 
 `role-user.overlay.yml` drops Models, plugin configuration, the sidebar Plugins
-page, agent presets, permission presets, the account and connector surfaces,
+page, agent presets, permission presets, connector accounts,
 the browser half of the dynamic Cordis runner, the conversation's Trajectory
 tab and "…" view menu (with the right sidebar's "Mais ferramentas"), and the
 interactive terminal, both its button and its host controller.
@@ -117,7 +117,10 @@ user's next login. The restart ends that user's in-flight agent run.
 before its port is reused, and concurrent requests share one restart.
 
 `role-admin.overlay.yml` keeps the shipped composition, sidebar Plugins page
-included. It still replaces the native directory chooser: an administrator's
+included. Both roles also get `plugins/compliance-hardening.overlay.yml`, which
+among other things removes the personal DeepSeek account. Its
+`settings.launcher` would otherwise replace the footer row that shows the
+signed-in user. It still replaces the native directory chooser: an administrator's
 backend is confined exactly like everyone else's, because tenancy is a boundary rather than a trust level, and a
 native dialog would open on the host outside that boundary.
 

@@ -45,6 +45,16 @@ const CLIENT_ROWS = {
     '@deepseek-ai/dsh-client-ui-plugin-manager': true,
   },
 }
+/**
+ * Never served to anyone: the personal DeepSeek account launcher registers
+ * `settings.launcher`, which replaces the whole sidebar footer row, so the
+ * signed-in user's name (compliance-user-menu) turns into "··· Mais". A
+ * personal account sign-in would also change whose billing requests use.
+ */
+for (const rows of Object.values(CLIENT_ROWS)) {
+  rows['@deepseek-ai/dsh-client-ui-settings-account'] = false
+  rows['@deepseek-ai/dsh-client-ui-account-notifications'] = false
+}
 const BOOT_TIMEOUT_MS = 90_000
 /** Preset rows settle after boot; a row still pending after this is genuinely missing a service. */
 const SETTLE_TIMEOUT_MS = 30_000

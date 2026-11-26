@@ -41,3 +41,16 @@
   disabled: true
 - id: ui-schedule
   disabled: true
+
+# The personal DeepSeek account (sign-in, account menu, account notices). This
+# platform bills model requests to the deployment's own credentials, and a
+# personal sign-in would change whose billing a request uses (`ctx.deepseekAuth`).
+# It also registers `settings.launcher`, which replaces the whole sidebar footer
+# row: the signed-in user's name (compliance-user-menu, in `settings.trigger`
+# inside the default launcher) turned into "··· Mais" for every administrator.
+# The gateway already refuses the `account` namespace to non-admins.
+# plugins/compliance-tenancy/tests/role-presets.mjs asserts no role is served it.
+- id: ui-settings-account
+  disabled: true
+- id: ui-account-notifications
+  disabled: true
