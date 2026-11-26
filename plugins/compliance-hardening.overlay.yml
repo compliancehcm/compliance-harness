@@ -32,16 +32,6 @@
 - id: skill-office
   disabled: true
 
-# Scheduled tasks and reminders. A backend is stopped after
-# COMPLIANCE_IDLE_REAP_MINUTES without traffic and the Schedule service needs
-# its Host running, so a task a user schedules would silently never fire. The
-# reminder tools register only while this service exists, so disabling it
-# removes them from the model too.
-- id: schedule
-  disabled: true
-- id: ui-schedule
-  disabled: true
-
 # The personal DeepSeek account (sign-in, account menu, account notices). This
 # platform bills model requests to the deployment's own credentials, and a
 # personal sign-in would change whose billing a request uses (`ctx.deepseekAuth`).

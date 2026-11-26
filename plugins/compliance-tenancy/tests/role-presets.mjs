@@ -40,9 +40,13 @@ const CLIENT_ROWS = {
     '@deepseek-ai/dsh-client-ui-entry-customization': false,
     '@deepseek-ai/dsh-client-ui-sidebar-terminal': false,
     '@deepseek-ai/dsh-client-ui-plugin-manager': false,
+    '@deepseek-ai/dsh-client-ui-schedule': false,
   },
   admin: {
     '@deepseek-ai/dsh-client-ui-plugin-manager': true,
+    // Scheduled tasks are on for administrators to evaluate; see the
+    // `schedule` rows in role-user.overlay.yml for why users do not get them.
+    '@deepseek-ai/dsh-client-ui-schedule': true,
   },
 }
 /**

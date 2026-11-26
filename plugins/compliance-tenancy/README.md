@@ -92,7 +92,12 @@ endpoints behind them. Omitting a client row does not remove an RPC.
 page, agent presets, permission presets, connector accounts,
 the browser half of the dynamic Cordis runner, the conversation's Trajectory
 tab and "…" view menu (with the right sidebar's "Mais ferramentas"), and the
-interactive terminal, both its button and its host controller.
+interactive terminal, both its button and its host controller, and scheduled
+tasks (`schedule`, `ui-schedule`). Administrators keep scheduled tasks to
+evaluate them. They deliver only while the user's backend runs, and a run that
+calls ALMA needs a live SSO session, so a task due while its owner is away does
+not fire. Tasks belong to one user's backend and its storage, so each user sees
+only their own.
 
 **Never disable a row an agent preset needs.** Since dsh 0.2.3 the agent's
 tools live inside an agent preset, and a preset with a single pending row is
