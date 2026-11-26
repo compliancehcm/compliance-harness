@@ -82,14 +82,11 @@
     - id: ui-directory-picker-browse
       name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
 
-# Account surfaces whose endpoints the gateway refuses to a non-admin
-# (`account`, `connectorAccounts`): a personal DeepSeek sign-in would change whose
-# billing requests use, and connector OAuth cannot complete behind the gate. The
-# rows go so the UI does not offer them and nothing polls refused endpoints.
-- id: ui-settings-account
-  disabled: true
-- id: ui-account-notifications
-  disabled: true
+# Connector accounts, whose endpoints the gateway refuses to a non-admin
+# (`connectorAccounts`): connector OAuth cannot complete behind the gate. The row
+# goes so the UI does not offer it and nothing polls refused endpoints. The
+# personal DeepSeek account rows are off for every role, in
+# plugins/compliance-hardening.overlay.yml.
 - id: ui-connector-account
   disabled: true
 
