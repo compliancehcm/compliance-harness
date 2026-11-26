@@ -53,6 +53,12 @@ export interface Session {
    */
   readonly admin: boolean
   /**
+   * When the login that opened this session completed (epoch ms). Tenancy uses
+   * it to let the newest login's {@link Session.admin} pick the user's backend
+   * composition, so an older session with a stale role cannot flip it back.
+   */
+  readonly authenticatedAt: number
+  /**
    * The current access token. It never reaches the browser; the token broker
    * hands it to this user's own backend, which presents it to ALMA.
    */
@@ -143,6 +149,7 @@ export class SessionStore {
       id: randomId(),
       principal,
       admin: tokens.admin ?? false,
+      authenticatedAt: at,
       accessToken: tokens.accessToken,
       ...tokens.refreshToken !== undefined && { refreshToken: tokens.refreshToken },
       ...tokens.idToken !== undefined && { idToken: tokens.idToken },

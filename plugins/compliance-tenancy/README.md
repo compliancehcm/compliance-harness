@@ -103,6 +103,19 @@ injects. Its RPC namespace `dynamicCordisRunner` is refused by the gateway.
 `tests/role-presets.mjs` boots each role and fails if its default preset is
 broken, or if a role is served a browser half it should not have.
 
+**A role change restarts the user's backend.** The composition is fixed when a
+backend starts, and an open tab keeps a backend from ever going idle. So the
+pool compares the composition each request asks for with the one the backend
+was started in, and replaces a backend that no longer matches. Until this was
+added, a user granted `dsh-admin` kept the ordinary composition (no Plugins
+page), and a user whose role was revoked kept the administrative one, until
+the pod restarted. Admin standing is per gateway session and fixed at login,
+so the **newest login** decides (`src/standing.ts`). A tab that predates the
+change cannot flip the backend back, and a role change takes effect at the
+user's next login. The restart ends that user's in-flight agent run.
+`tests/pool.mjs` covers the restart and its ordering: the old process stops
+before its port is reused, and concurrent requests share one restart.
+
 `role-admin.overlay.yml` keeps the shipped composition, sidebar Plugins page
 included. It still replaces the native directory chooser: an administrator's
 backend is confined exactly like everyone else's, because tenancy is a boundary rather than a trust level, and a

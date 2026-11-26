@@ -15,6 +15,10 @@ interface Entry {
   readonly starting: Promise<RunningBackend>
   /** Set once `starting` resolves, so the reaper can read liveness cheaply. */
   running?: RunningBackend
+  /** The composition this backend was started with (e.g. `user`, `admin`). */
+  readonly variant: string
+  /** Set while the entry is being stopped for a restart; every caller awaits the same one. */
+  retiring?: Promise<void>
 }
 
 /** What a caller gets when asking for a user's backend. */
@@ -23,8 +27,8 @@ export type Acquisition =
   | { readonly kind: 'at-capacity'; readonly active: number; readonly max: number }
   | { readonly kind: 'failed'; readonly reason: string }
 
-/** How the pool starts a backend for a user. */
-export type Starter = (key: string, port: number) => Promise<RunningBackend>
+/** How the pool starts a backend for a user, in the composition `variant` names. */
+export type Starter = (key: string, port: number, variant: string) => Promise<RunningBackend>
 
 /** Pool configuration. */
 export interface PoolOptions {
@@ -39,6 +43,8 @@ export interface PoolOptions {
 export class BackendPool {
   private readonly entries = new Map<string, Entry>()
   private readonly ports = new Map<string, number>()
+  /** Stops in progress for a restart, per user key. */
+  private readonly retirements = new Map<string, Promise<void>>()
 
   constructor(private readonly options: PoolOptions) {}
 
@@ -49,11 +55,30 @@ export class BackendPool {
    * request and the three that follow it milliseconds later must not each spawn
    * a harness.
    *
+   * A backend started in another composition is stopped and replaced. The
+   * composition is fixed at start, and an open tab keeps a backend from ever
+   * going idle, so without this a user granted administration would keep the
+   * ordinary composition, and one whose role was revoked would keep the
+   * administrative one, until the gateway restarted.
+   *
    * @param key - the user's stable key.
+   * @param variant - the composition this user should get now.
    * @returns the backend, or why it could not be had.
    */
-  async acquire(key: string): Promise<Acquisition> {
-    const existing = this.entries.get(key)
+  async acquire(key: string, variant = ''): Promise<Acquisition> {
+    let existing: Entry | undefined
+    for (;;) {
+      // A request arriving while this user's backend is being stopped waits for
+      // the stop, rather than starting a second backend beside the dying one.
+      const retiring = this.retirements.get(key)
+      if (retiring !== undefined) {
+        await retiring
+        continue
+      }
+      existing = this.entries.get(key)
+      if (existing === undefined || existing.variant === variant) break
+      await this.retire(key, existing, `composition changed from ${existing.variant || '(none)'} to ${variant || '(none)'}`)
+    }
     if (existing !== undefined) {
       try {
         const backend = await existing.starting
@@ -77,7 +102,7 @@ export class BackendPool {
       return { kind: 'failed', reason: 'no free port in the configured range' }
     }
 
-    const entry: Entry = { starting: this.options.starter(key, port) }
+    const entry: Entry = { starting: this.options.starter(key, port, variant), variant }
     this.entries.set(key, entry)
     try {
       const backend = await entry.starting
@@ -109,6 +134,33 @@ export class BackendPool {
 
   private releasePort(key: string): void {
     this.ports.delete(key)
+  }
+
+  /**
+   * Stop one entry so it can be replaced. The entry leaves the table at once, so
+   * no new request is routed to it, but its port is released only after the
+   * process has stopped: the replacement may take the same port, and must not
+   * race the old listener for it. Concurrent callers share the one stop.
+   */
+  private retire(key: string, entry: Entry, why: string): Promise<void> {
+    if (entry.retiring !== undefined) return entry.retiring
+    if (this.entries.get(key) === entry) this.entries.delete(key)
+    this.options.logger.info(`compliance-tenancy: restarting backend for ${key}: ${why}`)
+    const retiring = (async () => {
+      try {
+        const backend = entry.running ?? await entry.starting
+        await backend.stop()
+      } catch (error) {
+        // A backend that never started has nothing to stop; one that fails to
+        // stop is logged, and the restart proceeds rather than locking the user out.
+        this.options.logger.warn(`compliance-tenancy: stopping backend for ${key} failed: ${String(error)}`)
+      }
+      if (!this.entries.has(key)) this.releasePort(key)
+      this.retirements.delete(key)
+    })()
+    entry.retiring = retiring
+    this.retirements.set(key, retiring)
+    return retiring
   }
 
   /**
